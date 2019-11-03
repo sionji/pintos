@@ -20,6 +20,10 @@
    of thread.h for details. */
 #define THREAD_MAGIC 0xcd6abf4b
 
+/* My new code. List of processes in THREAD_SLEEP state, that is,
+	 processes that are sleeping and blocked.*/
+static struct list sleep_list;
+
 /* List of processes in THREAD_READY state, that is, processes
    that are ready to run but not actually running. */
 static struct list ready_list;
@@ -68,6 +72,7 @@ static void init_thread (struct thread *, const char *name, int priority);
 static bool is_thread (struct thread *) UNUSED;
 static void *alloc_frame (struct thread *, size_t size);
 static void schedule (void);
+void schedule_sleep (void);
 void thread_schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
 
@@ -92,6 +97,7 @@ thread_init (void)
   lock_init (&tid_lock);
   list_init (&ready_list);
   list_init (&all_list);
+	list_init (&sleep_list);
 
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread ();
@@ -315,11 +321,37 @@ thread_yield (void)
   ASSERT (!intr_context ());
 
   old_level = intr_disable ();
+
   if (cur != idle_thread) 
     list_push_back (&ready_list, &cur->elem);
   cur->status = THREAD_READY;
   schedule ();
   intr_set_level (old_level);
+}
+
+void
+thread_sleep (int64_t start)
+{
+	struct thread *cur = thread_current ();
+	enum intr_level old_level;
+
+	/* My new codes. When if timer_sleep ft is called, then
+  BLOCK current thread and add to sleep_list.  */
+	ASSERT (!intr_context ());
+
+  old_level = intr_disable ();
+
+	if (cur != idle_thread)
+	{
+    list_push_back (&sleep_list, &cur->elem);
+		cur->wait_cnt = start;
+		thread_block ();
+	}
+  schedule ();
+  intr_set_level (old_level);
+	/* My codes end. */
+	
+	return;
 }
 
 /* Invoke function 'func' on all threads, passing along 'aux'.
@@ -563,9 +595,36 @@ schedule (void)
   ASSERT (cur->status != THREAD_RUNNING);
   ASSERT (is_thread (next));
 
+	schedule_sleep();
+
   if (cur != next)
     prev = switch_threads (cur, next);
   thread_schedule_tail (prev);
+}
+
+/* Schedule codes for sleep list. */
+void
+schedule_sleep (void)
+{
+	struct list_elem *l = list_begin (&sleep_list);
+	
+	while (l != list_end (&sleep_list)) 
+	{
+		struct thread *t = list_entry (l, struct thread, elem);
+		if ( timer_elapsed (t->wait_cnt) < timer_ticks ())
+		{
+			t->wait_cnt = 0;
+			thread_unblock (t);
+			l = list_remove (l);
+		}
+		else
+			l = list_next (l);
+
+		if (list_empty (l))
+			break;
+	}
+
+	return;
 }
 
 /* Returns a tid to use for a new thread. */
