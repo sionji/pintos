@@ -46,10 +46,11 @@ thread_sleep (int64_t ticks, int64_t start)
 	return;
 }
 ```
+
+thread_sleep() ft make current thread sleep. Intrrupt must have to be disabled. Before adding a thread to the sleep_list, it records current time and wait time information. This will be used when the thread wake-up.
 <br />
-thread_sleep ft make current thread sleep. Intrrupt must have to be disabled. Before adding a thread to the sleep_list, it records current time and wait time information. This will be used when the thread wake-up.
 <br />
-<br />
+
 ```
 static void
 schedule (void) 
@@ -95,6 +96,7 @@ schedule_sleep (void)
 You can see the schedule_sleep() ft inside the schedule() ft. That means, PintOS will check the sleep_list regularly. schedule_sleep() ft checks the sleep_list and threads which needs unblocking. timer_elapsed ft is used similarly compared to original codes.
 <br />
 <br />
+
 ```
 /* Sleeps for approximately TICKS timer ticks.  Interrupts must
    be turned on. */
@@ -117,6 +119,7 @@ timer_sleep (int64_t ticks)
 
 }
 ```
+
 <br />
 The original method is depreciated. Instead, it will invokes the thread_sleep() ft.
 <br />
