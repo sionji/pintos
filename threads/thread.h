@@ -91,6 +91,7 @@ struct thread
     struct list_elem allelem;           /* List element for all threads list. */
 
 		int64_t wait_cnt;										/* Sleep-list wait counter variable */		
+		int64_t wait_start;
 
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
@@ -128,7 +129,7 @@ const char *thread_name (void);
 void thread_exit (void) NO_RETURN;
 void thread_yield (void);
 
-void thread_sleep (int64_t start); /* Added header function. */
+void thread_sleep (int64_t ticks, int64_t start); /* Added header function. */
 
 /* Performs some operation on thread t, given auxiliary data AUX. */
 typedef void thread_action_func (struct thread *t, void *aux);

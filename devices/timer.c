@@ -99,7 +99,7 @@ timer_sleep (int64_t ticks)
     thread_yield ();
 	*/
 	
-	thread_sleep (start);
+	thread_sleep (ticks, start);
 
 	return;
 

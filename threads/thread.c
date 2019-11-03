@@ -330,7 +330,7 @@ thread_yield (void)
 }
 
 void
-thread_sleep (int64_t start)
+thread_sleep (int64_t ticks, int64_t start)
 {
 	struct thread *cur = thread_current ();
 	enum intr_level old_level;
@@ -343,11 +343,11 @@ thread_sleep (int64_t start)
 
 	if (cur != idle_thread)
 	{
+		cur->wait_cnt = ticks;
+		cur->wait_start = start;
     list_push_back (&sleep_list, &cur->elem);
-		cur->wait_cnt = start;
 		thread_block ();
 	}
-  schedule ();
   intr_set_level (old_level);
 	/* My codes end. */
 	
@@ -611,17 +611,15 @@ schedule_sleep (void)
 	while (l != list_end (&sleep_list)) 
 	{
 		struct thread *t = list_entry (l, struct thread, elem);
-		if ( timer_elapsed (t->wait_cnt) < timer_ticks ())
+		if ( (t->wait_cnt) < timer_elapsed(t->wait_start) )
 		{
-			t->wait_cnt = 0;
-			thread_unblock (t);
 			l = list_remove (l);
+			thread_unblock (t);
+			t->wait_cnt = 0;
+			t->wait_start = 0;
 		}
 		else
 			l = list_next (l);
-
-		if (list_empty (l))
-			break;
 	}
 
 	return;
