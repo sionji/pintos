@@ -76,6 +76,10 @@ void schedule_sleep (void);
 void thread_schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
 
+bool thread_less_func (const struct list_elem *a, 
+		const struct list_elem *b, void *aux);
+
+
 /* Initializes the threading system by transforming the code
    that's currently running into a thread.  This can't work in
    general and it is possible in this case only because loader.S
@@ -129,6 +133,7 @@ void
 thread_tick (void) 
 {
   struct thread *t = thread_current ();
+	struct list_elem *e = list_begin (&ready_list);		/* Added code. */
 
   /* Update statistics. */
   if (t == idle_thread)
@@ -141,6 +146,9 @@ thread_tick (void)
     kernel_ticks++;
 
   /* Enforce preemption. */
+	if ((t->priority) < (list_entry(e, struct thread, elem)->priority))
+		intr_yield_on_return ();												/* Added code. */
+	
   if (++thread_ticks >= TIME_SLICE)
     intr_yield_on_return ();
 }
@@ -214,6 +222,7 @@ thread_create (const char *name, int priority,
 
   /* Add to run queue. */
   thread_unblock (t);
+	thread_priority_check (t);
 
   return tid;
 }
@@ -251,7 +260,11 @@ thread_unblock (struct thread *t)
 
   old_level = intr_disable ();
   ASSERT (t->status == THREAD_BLOCKED);
-  list_push_back (&ready_list, &t->elem);
+  /* Original code.
+	list_push_back (&ready_list, &t->elem);
+	*/
+	list_insert_ordered (&ready_list, &t->elem, thread_less_func, 0);
+
   t->status = THREAD_READY;
   intr_set_level (old_level);
 }
@@ -323,10 +336,27 @@ thread_yield (void)
   old_level = intr_disable ();
 
   if (cur != idle_thread) 
+		/* Original code. 
     list_push_back (&ready_list, &cur->elem);
+		*/
+		list_insert_ordered (&ready_list, &cur->elem, thread_less_func, 0);
   cur->status = THREAD_READY;
   schedule ();
   intr_set_level (old_level);
+}
+
+/* Added codes. It looks different compared to list_less_func at
+ .../src/lib/kernel/list.h . The reason why the inequality direction is
+ different is that the difference between PRIORITY and LIST_SORT().
+ LARGER PRIORITY thread has priority. However, LIST_SORT() sorts
+ in order to LESS integer value. That's why the inequality direction was
+ inversed. */
+bool
+thread_less_func (const struct list_elem *a, 
+		const struct list_elem *b, void *aux)
+{
+	return ( (list_entry(a, struct thread, elem)->priority)
+			> (list_entry(b, struct thread, elem)->priority)? true : false );
 }
 
 void
@@ -354,6 +384,23 @@ thread_sleep (int64_t ticks, int64_t start)
 	return;
 }
 
+/* Added new code. Check the priority between current thread and
+ first thread of ready_list. Function thread_tick() will check
+ regularly.*/
+void
+thread_priority_check (struct thread *t) 
+{
+	struct list_elem *e = list_begin(&ready_list);
+	
+	if (list_empty (&ready_list))
+		return;
+
+	if ((t->priority) < list_entry(e, struct thread, elem)->priority)
+		thread_yield();
+
+	return;
+}
+
 /* Invoke function 'func' on all threads, passing along 'aux'.
    This function must be called with interrupts off. */
 void
@@ -376,6 +423,7 @@ void
 thread_set_priority (int new_priority) 
 {
   thread_current ()->priority = new_priority;
+	thread_priority_check(thread_current ());
 }
 
 /* Returns the current thread's priority. */
@@ -600,6 +648,12 @@ schedule (void)
   if (cur != next)
     prev = switch_threads (cur, next);
   thread_schedule_tail (prev);
+}
+
+void 
+thread_priority_adjustment (void)
+{
+	return;
 }
 
 /* Schedule codes for sleep list. */
