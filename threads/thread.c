@@ -222,7 +222,7 @@ thread_create (const char *name, int priority,
 
   /* Add to run queue. */
   thread_unblock (t);
-	thread_priority_check (t);
+	thread_priority_check ();
 
   return tid;
 }
@@ -385,17 +385,16 @@ thread_sleep (int64_t ticks, int64_t start)
 }
 
 /* Added new code. Check the priority between current thread and
- first thread of ready_list. Function thread_tick() will check
- regularly.*/
+ first thread of ready_list. If preemption is needed, then yield CPU.  */
 void
-thread_priority_check (struct thread *t) 
+thread_priority_check (void) 
 {
 	struct list_elem *e = list_begin(&ready_list);
 	
 	if (list_empty (&ready_list))
 		return;
 
-	if ((t->priority) < list_entry(e, struct thread, elem)->priority)
+	if ((thread_current ()->priority) < list_entry(e, struct thread, elem)->priority)
 		thread_yield();
 
 	return;
@@ -423,7 +422,7 @@ void
 thread_set_priority (int new_priority) 
 {
   thread_current ()->priority = new_priority;
-	thread_priority_check(thread_current ());
+	thread_priority_check();
 }
 
 /* Returns the current thread's priority. */
@@ -650,10 +649,22 @@ schedule (void)
   thread_schedule_tail (prev);
 }
 
-void 
-thread_priority_adjustment (void)
+void
+schedule_aging (void) 
 {
-	return;
+	struct list_elem *e;
+
+	if (list_empty(&ready_list))
+			return;
+
+	for (e = list_begin (&ready_list); e != list_end (&ready_list); 
+		e = list_next(e))
+	{
+		struct thread *t = list_entry (e, struct thread, elem);
+		if (t->priority < PRI_MAX)
+			(t->priority)++;
+	}
+	
 }
 
 /* Schedule codes for sleep list. */
