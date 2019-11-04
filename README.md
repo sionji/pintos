@@ -11,13 +11,13 @@
 5. PintOS will check the sleeping threads regularly as execute schedule() method. <br />
 
 ### Solution
-First, I made sleep_list(). Then, insert kernel threads which is called by timer_sleep() into sleep_list(). <br />
-These sleep threads will be blocked by thread_blocked() method. <br />
+First, I made *sleep_list()*. Then, insert kernel threads which is called by *timer_sleep()* into *sleep_list()*. <br />
+These sleep threads will be blocked by *thread_blocked()* method. <br />
 <br />
 Also, struct thread needs new arguments, which stores data of time. <br />
-I declared two arguments, wait_cnt and wait_start. <br />
-wait_cnt is an integer value that stores how long to wait. <br />
-wait_start is an integer value that stores time when timer_sleep() ft is called. <br />
+I declared two arguments, *wait_cnt* and *wait_start*. <br />
+*wait_cnt* is an integer value that stores how long to wait. <br />
+*wait_start* is an integer value that stores time when *timer_sleep()* ft is called. <br />
 <br />
 
 ```
@@ -47,7 +47,7 @@ thread_sleep (int64_t ticks, int64_t start)
 }
 ```
 
-thread_sleep() ft make current thread sleep. Intrrupt must have to be disabled. Before adding a thread to the sleep_list, it records current time and wait time information. This will be used when the thread wake-up.
+*thread_sleep()* ft make current thread sleep. Intrrupt must have to be disabled. Before adding a thread to the *sleep_list*, it records current time and wait time information. This will be used when the thread wake-up.
 <br />
 <br />
 
@@ -93,7 +93,7 @@ schedule_sleep (void)
 	return;
 }
 ```
-You can see the schedule_sleep() ft inside the schedule() ft. That means, PintOS will check the sleep_list regularly. schedule_sleep() ft checks the sleep_list and threads which needs unblocking. timer_elapsed ft is used similarly compared to original codes.
+You can see the *schedule_sleep()* ft inside the schedule() ft. That means, PintOS will check the *sleep_list* regularly. *schedule_sleep()* ft checks the *sleep_list* and threads which needs unblocking. *timer_elapsed()* ft is used similarly compared to original codes.
 <br />
 <br />
 
@@ -121,7 +121,7 @@ timer_sleep (int64_t ticks)
 ```
 
 <br />
-The original method is depreciated. Instead, it will invokes the thread_sleep() ft.
+The original method is depreciated. Instead, it will invokes the *thread_sleep()* ft.
 <br />
 
 
