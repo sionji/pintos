@@ -76,9 +76,6 @@ void schedule_sleep (void);
 void thread_schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
 
-bool thread_less_func (const struct list_elem *a, 
-		const struct list_elem *b, void *aux);
-
 
 /* Initializes the threading system by transforming the code
    that's currently running into a thread.  This can't work in
