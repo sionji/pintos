@@ -397,6 +397,53 @@ thread_priority_check (void)
 	return;
 }
 
+/* Added codes from priority donation. Check all locks related to current thread
+   and donate its priority. */
+void
+thread_priority_donation (struct thread *t)
+{
+	/* If lock address is NULL, then return. */
+	if (t->lock_add == NULL)
+		return;
+	
+	/* Check the priority between lock holder and thread. */
+	if (t->lock_add->holder->priority < t->priority)
+		t->lock_add->holder->priority = t->priority;
+
+	/* Recurrsive call. */
+	thread_priority_donation (t->lock_add->holder);
+
+	return;
+}
+
+/* Added codes from priority donation. Check the current thread's priority. */
+void 
+thread_priority_refresh (void)
+{
+	struct thread *t = thread_current ();
+	struct list_elem *e;
+	int max = t->old_priority;
+	
+	if (list_empty (&t->donation))
+	{
+		t->priority = max;
+		return;
+	}
+	else
+	{
+		for (e = list_begin (&t->donation); e != list_end (&t->donation);
+				 e = list_next (e))
+		{
+      struct thread *f = list_entry (e, struct thread, donate_elem);
+			if (f->priority > max)
+				max = f->priority;
+		}
+		t->priority = max;
+	}
+
+  return;
+}
+
 /* Invoke function 'func' on all threads, passing along 'aux'.
    This function must be called with interrupts off. */
 void
@@ -419,7 +466,17 @@ void
 thread_set_priority (int new_priority) 
 {
   thread_current ()->priority = new_priority;
-	thread_priority_check();
+
+	/* Check the donate option. */
+	if (thread_current ()->priority > thread_current ()->old_priority)
+    thread_priority_donation (thread_current ());
+
+	/* Refresh the highest priority. */
+  thread_current ()->old_priority = new_priority;
+  thread_priority_refresh ();
+
+	/* Yields the CPU. */ 
+  thread_priority_check ();
 }
 
 /* Returns the current thread's priority. */
@@ -544,6 +601,12 @@ init_thread (struct thread *t, const char *name, int priority)
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
+
+	/* Added codes from priority donation. */
+	t->old_priority = priority;
+	list_init (&t->donation);
+	t->lock_add = NULL;
+
   t->magic = THREAD_MAGIC;
   list_push_back (&all_list, &t->allelem);
 }
@@ -646,23 +709,6 @@ schedule (void)
   thread_schedule_tail (prev);
 }
 
-void
-schedule_aging (void) 
-{
-	struct list_elem *e;
-
-	if (list_empty(&ready_list))
-			return;
-
-	for (e = list_begin (&ready_list); e != list_end (&ready_list); 
-		e = list_next(e))
-	{
-		struct thread *t = list_entry (e, struct thread, elem);
-		if (t->priority < PRI_MAX)
-			(t->priority)++;
-	}
-	
-}
 
 /* Schedule codes for sleep list. */
 void

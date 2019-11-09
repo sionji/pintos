@@ -90,11 +90,18 @@ struct thread
     int priority;                       /* Priority. */
     struct list_elem allelem;           /* List element for all threads list. */
 
+		/* Used at alarm-clock. */ 
 		int64_t wait_cnt;										/* Sleep-list wait counter variable */		
 		int64_t wait_start;
 
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
+
+		/* Used in priority donation. */
+		int old_priority;
+		struct list donation;
+		struct list_elem donate_elem;
+		struct lock *lock_add;
 
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
@@ -129,7 +136,8 @@ const char *thread_name (void);
 void thread_exit (void) NO_RETURN;
 void thread_yield (void);
 void thread_priority_check (void);
-void schedule_aging (void);
+void thread_priority_donation (struct thread *);
+void thread_priority_refresh (void);
 
 bool thread_less_func (const struct list_elem *a, const struct list_elem *b, void *aux);
 

@@ -200,12 +200,21 @@ lock_init (struct lock *lock)
 void
 lock_acquire (struct lock *lock)
 {
+	struct thread *t = thread_current();
   ASSERT (lock != NULL);
   ASSERT (!intr_context ());
   ASSERT (!lock_held_by_current_thread (lock));
 
+	if (lock->holder != NULL)
+	{
+		t->lock_add = lock;
+		list_insert_ordered (&lock->holder->donation, &t->donate_elem,
+				thread_less_func, 0);
+		thread_priority_donation (t);
+	}
   sema_down (&lock->semaphore);
-  lock->holder = thread_current ();
+  lock->holder = t;
+  t->lock_add = NULL;			/* Initialize lock_add. */
 }
 
 /* Tries to acquires LOCK and returns true if successful or false
@@ -240,7 +249,34 @@ lock_release (struct lock *lock)
   ASSERT (lock_held_by_current_thread (lock));
 
   lock->holder = NULL;
+
+	/* Added codes from priority donation. */
+	remove_donation_list (lock);
+	thread_priority_refresh ();
+
   sema_up (&lock->semaphore);
+}
+
+/* Added codes from priority donation. Eliminate current lock's
+   waiting threads from donation LIST. */
+void
+remove_donation_list (struct lock *lock)
+{
+	struct list_elem *e;
+	struct thread *t = thread_current ();
+	
+	if (list_empty (&t->donation))
+		return;
+
+	for (e = list_begin (&t->donation); e != list_end (&t->donation);
+			 e = list_next (e))
+	{
+		struct thread *f = list_entry (e, struct thread, donate_elem);
+		if (lock == f->lock_add)
+      list_remove (&f->donate_elem);
+	}
+
+	return;
 }
 
 /* Returns true if the current thread holds LOCK, false
