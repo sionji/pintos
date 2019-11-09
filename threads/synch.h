@@ -37,6 +37,7 @@ struct condition
   };
 
 void cond_init (struct condition *);
+bool cond_less_func (const struct list_elem *, const struct list_elem *, void *);
 void cond_wait (struct condition *, struct lock *);
 void cond_signal (struct condition *, struct lock *);
 void cond_broadcast (struct condition *, struct lock *);

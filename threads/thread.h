@@ -128,6 +128,10 @@ const char *thread_name (void);
 
 void thread_exit (void) NO_RETURN;
 void thread_yield (void);
+void thread_priority_check (void);
+void schedule_aging (void);
+
+bool thread_less_func (const struct list_elem *a, const struct list_elem *b, void *aux);
 
 void thread_sleep (int64_t ticks, int64_t start); /* Added header function. */
 
