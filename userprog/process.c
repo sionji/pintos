@@ -41,7 +41,7 @@ process_execute (const char *file_name)
     return TID_ERROR;
   strlcpy (fn_copy, file_name, PGSIZE);
 
-	/* Added codes from argument parsing. */
+	/* Added codes for argument parsing. */
 	strlcpy (file_name_, file_name, strlen (file_name) + 1);
 	token = strtok_r (file_name_, " ", &save_ptr);
 
@@ -50,7 +50,10 @@ process_execute (const char *file_name)
 		 tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy); */
   tid = thread_create (token, PRI_DEFAULT, start_process, fn_copy);
   if (tid == TID_ERROR)
+	{
     palloc_free_page (fn_copy); 
+		tid = -1;    /* Added code for syscall. */
+	}
   return tid;
 }
 
@@ -77,9 +80,10 @@ start_process (void *file_name_)
 		argc++;
 	}
 
-	/* Codes for debugging. */
+	/* Codes for debugging. 
 	for (i = 0; i < argc ; i++)
 		printf ("parse[%d] : %s \n", i, parse[i]);
+		*/
 
   /* Initialize interrupt frame and load executable. */
   memset (&if_, 0, sizeof if_);
@@ -93,7 +97,6 @@ start_process (void *file_name_)
 	/* Added code for argument stack push. */
 	if (success)
 	{
-		printf ("load success... \n");
 		arg_stack_push (&parse, argc, &if_.esp);
 	}
 
@@ -126,7 +129,7 @@ arg_stack_push (char **parse, int argc, void **esp)
 	char **argv[argc+1];
 	void **old_esp;
 
-	printf ("Check point #1\n");
+	// printf ("Check point #1\n");
 	/* Do strlcpy to each parse[] and save address to each argv[]. */
 	for (num = argc-1; num >= 0; num--)
 	{
@@ -137,7 +140,7 @@ arg_stack_push (char **parse, int argc, void **esp)
 		total += chr_len + 1;
 	}
 
-	printf ("Check point #2\n");
+	// printf ("Check point #2\n");
 	/* Check the world-align padding in multiple of 4.
 	   PintOS is 32bit operating system, which means PC Register is 32bit long.
 	   32bit is same as 4byte. Typically, PC value is automatically increases 
@@ -150,7 +153,7 @@ arg_stack_push (char **parse, int argc, void **esp)
 		total += 1;
 	}
 
-	printf ("Check point #3\n");
+	// printf ("Check point #3\n");
 	/* Write the address of each argv[]. */
 	*esp -= 4;
 	**(uint32_t **) esp = 0;	   /* Null char padding. */
