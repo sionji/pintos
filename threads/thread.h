@@ -4,6 +4,7 @@
 #include <debug.h>
 #include <list.h>
 #include <stdint.h>
+#include "threads/synch.h"
 
 /* States in a thread's life cycle. */
 enum thread_status
@@ -90,7 +91,7 @@ struct thread
     int priority;                       /* Priority. */
     struct list_elem allelem;           /* List element for all threads list. */
 
-		/* Used at alarm-clock. */ 
+		/* Added codes. Used at alarm-clock. */ 
 		int64_t wait_cnt;										/* Sleep-list wait counter variable */		
 		int64_t wait_start;
 
@@ -99,9 +100,18 @@ struct thread
 
 		/* Used in priority donation. */
 		int old_priority;
-		struct list donation;
-		struct list_elem donate_elem;
-		struct lock *lock_add;
+		struct list donation;               /* List of threads which donate 
+																					 its priority to current thread. */
+		struct list_elem donate_elem;       /* List element for priority donation. */
+		struct lock *lock_add;              /* Lock address which is waiting for. */
+
+		/* Add codes for syscall and process hierarchy. */
+		struct list child_list;             /* List of current thread's child process. */
+		struct list_elem child_elem;        /* List element of child. */
+		struct semaphore sema;              /* Current thread's semaphore. */
+		struct thread *parent;              /* Threads should have to know their parent. */ 
+		int flag_load;
+		int exit_status;                    /* Status whether it exited properly. */
 
 #ifdef USERPROG
     /* Owned by userprog/process.c. */

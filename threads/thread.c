@@ -183,6 +183,7 @@ thread_create (const char *name, int priority,
   struct switch_threads_frame *sf;
   tid_t tid;
   enum intr_level old_level;
+	struct thread *parent = thread_current ();
 
   ASSERT (function != NULL);
 
@@ -214,6 +215,14 @@ thread_create (const char *name, int priority,
   sf = alloc_frame (t, sizeof *sf);
   sf->eip = switch_entry;
   sf->ebp = 0;
+
+	/* Added codes for syscall process hierarchy. */
+	sema_init (&t->sema, 0);
+	t->parent = &parent;
+	t->flag_load = 0;
+	t->exit_status = -1;    /* thread_exit () will make the value 0 when if
+													   it exits properly. */
+  list_push_back (&parent->child_list, &t->child_elem);
 
   intr_set_level (old_level);
 
@@ -304,6 +313,8 @@ thread_tid (void)
 void
 thread_exit (void) 
 {
+	struct list_elem *e;
+	struct thread *t = thread_current ();
   ASSERT (!intr_context ());
 
 #ifdef USERPROG
@@ -315,7 +326,8 @@ thread_exit (void)
      when it calls thread_schedule_tail(). */
   intr_disable ();
   list_remove (&thread_current()->allelem);
-  thread_current ()->status = THREAD_DYING;
+  t->status = THREAD_DYING;
+	sema_up (&t->sema);               /* Added code for syscall. */
   schedule ();
   NOT_REACHED ();
 }
@@ -607,6 +619,10 @@ init_thread (struct thread *t, const char *name, int priority)
 	list_init (&t->donation);
 	t->lock_add = NULL;
 
+	/* Added codes for syscall process hierarchy. */ 
+	list_init (&t->child_list);
+	t->parent = NULL;
+
   t->magic = THREAD_MAGIC;
   list_push_back (&all_list, &t->allelem);
 }
@@ -680,7 +696,7 @@ thread_schedule_tail (struct thread *prev)
   if (prev != NULL && prev->status == THREAD_DYING && prev != initial_thread) 
     {
       ASSERT (prev != cur);
-      palloc_free_page (prev);
+      // palloc_free_page (prev);  /* IT WILL BE DELETEED BY process_wait (). */
     }
 }
 

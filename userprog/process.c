@@ -50,10 +50,8 @@ process_execute (const char *file_name)
 		 tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy); */
   tid = thread_create (token, PRI_DEFAULT, start_process, fn_copy);
   if (tid == TID_ERROR)
-	{
     palloc_free_page (fn_copy); 
-		tid = -1;    /* Added code for syscall. */
-	}
+
   return tid;
 }
 
@@ -94,16 +92,21 @@ start_process (void *file_name_)
 		 success = load (file_name, &if_.eip, &if_.esp); */
   success = load (parse[0], &if_.eip, &if_.esp);
   
-	/* Added code for argument stack push. */
-	if (success)
-	{
-		arg_stack_push (&parse, argc, &if_.esp);
-	}
-
   /* If load failed, quit. */
   palloc_free_page (file_name);
   if (!success) 
+	{
+		thread_current ()->flag_load = -1;
     thread_exit ();
+	}
+
+	/* Added code for argument stack push and syscall hierarchy. */
+	else
+	{
+		thread_current ()->flag_load = 1;
+		arg_stack_push (&parse, argc, &if_.esp);
+	}
+	sema_up (&thread_current ()->sema);
 
 	/* Added code for debugging. */
 	hex_dump (if_.esp, if_.esp, PHYS_BASE - if_.esp, true);
@@ -180,9 +183,28 @@ arg_stack_push (char **parse, int argc, void **esp)
    This function will be implemented in problem 2-2.  For now, it
    does nothing. */
 int
-process_wait (tid_t child_tid UNUSED) 
+process_wait (tid_t child_tid) 
 {
-  return -1;
+	int retval;
+	struct thread *child;
+	struct list_elem *e;
+	struct thread *t = thread_current ();
+	child = find_child (child_tid);
+
+	/* If child process isn't exist, then... */ 
+	if (child == NULL)
+		return -1;
+
+	/* In the case that child process is exist. */
+  sema_down (&child->sema);             /* Wait for exit child process. */
+	retval = child->exit_status;          /* Save its status. */ 
+  list_remove (&child->child_elem);     /* Remove from list. */
+  palloc_free_page (child);             /* Free struct thread *child. */
+
+	if (retval != 0)
+		retval = -1;
+
+  return retval;
 }
 
 /* Free the current process's resources. */
