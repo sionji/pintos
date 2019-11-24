@@ -196,6 +196,15 @@ thread_create (const char *name, int priority,
   init_thread (t, name, priority);
   tid = t->tid = allocate_tid ();
 
+  /* Added codes for syscall process hierarchy. */
+	sema_init (&t->sema_exit, 0);
+	sema_init (&t->sema_load, 0);
+	t->parent = &parent;
+	t->flag_load = 0;
+	t->exit_status = -1;    /* thread_exit () will make the value 0 when if
+													   it exits properly. */
+  list_push_back (&parent->child_list, &t->child_elem);
+
   /* Prepare thread for first run by initializing its stack.
      Do this atomically so intermediate values for the 'stack' 
      member cannot be observed. */
@@ -215,15 +224,6 @@ thread_create (const char *name, int priority,
   sf = alloc_frame (t, sizeof *sf);
   sf->eip = switch_entry;
   sf->ebp = 0;
-
-	/* Added codes for syscall process hierarchy. */
-	sema_init (&t->sema_exit, 0);
-	sema_init (&t->sema_load, 0);
-	t->parent = &parent;
-	t->flag_load = 0;
-	t->exit_status = -1;    /* thread_exit () will make the value 0 when if
-													   it exits properly. */
-  list_push_back (&parent->child_list, &t->child_elem);
 
   intr_set_level (old_level);
 
@@ -314,7 +314,6 @@ thread_tid (void)
 void
 thread_exit (void) 
 {
-	struct list_elem *e;
 	struct thread *t = thread_current ();
   ASSERT (!intr_context ());
 
@@ -322,13 +321,14 @@ thread_exit (void)
   process_exit ();
 #endif
 
+	sema_up (&t->sema_exit);               /* Added code for syscall. */
+
   /* Remove thread from all threads list, set our status to dying,
      and schedule another process.  That process will destroy us
      when it calls thread_schedule_tail(). */
   intr_disable ();
   list_remove (&thread_current()->allelem);
   t->status = THREAD_DYING;
-	sema_up (&t->sema_exit);               /* Added code for syscall. */
   schedule ();
   NOT_REACHED ();
 }

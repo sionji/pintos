@@ -6,6 +6,7 @@
 #include <stdint.h>
 #include "threads/synch.h"
 #include "filesys/file.h"
+#include "filesys/inode.h"
 
 /* States in a thread's life cycle. */
 enum thread_status
@@ -115,7 +116,7 @@ struct thread
 		struct thread *parent;              /* Threads should have to know their parent. */ 
 		int flag_load;                      /* Status that load is successful. */
 		int exit_status;                    /* Status whether it exited properly. */
-		//struct file fdt[128];               /* File Descriptor Table. */
+		struct file *fdt[128];               /* File Descriptor Table. */
 		int next_fd;                        /* Next File Descriptor number. */
 
 #ifdef USERPROG
