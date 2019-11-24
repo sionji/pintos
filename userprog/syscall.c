@@ -1,6 +1,9 @@
 #include "userprog/syscall.h"
 #include "userprog/process.h"
 #include "filesys/filesys.h"
+#include "filesys/file.h"
+#include "filesys/inode.h"
+#include "devices/shutdown.h"
 #include <stdio.h>
 #include <syscall-nr.h>
 #include "threads/interrupt.h"
@@ -76,9 +79,9 @@ syscall_handler (struct intr_frame *f)
         if (t_child == NULL)
 				  retval = -1;
 			  else
-				  sema_down (&t_child->sema);
+				  sema_down (&t_child->sema_load);
 
-			  /* Create thread is successful,
+			  /* In case that creating thread is successful,
 				   but load is not successful. */
 			  if (t_child != NULL && t_child->flag_load != 1)
 			  	retval = -1;
@@ -120,14 +123,20 @@ syscall_handler (struct intr_frame *f)
 
 		case SYS_OPEN :                   /* Open a file. */
 			{
-				char *file;
-				file = (char *)arg[0];
-				filesys_open (file);
+				char *name;
+				struct file *fd;
+				name = (char *)arg[0];
+				fd = filesys_open (name);
 			  break;
 			}
 
 		case SYS_FILESIZE :               /* Obtain a file's size. */
-			break;
+			{
+				int fd;
+				struct file *file;
+				fd = *(int *)arg[0];
+		  	break;
+			}
 
 		case SYS_READ :                   /* Read from a file. */
 			break;
@@ -165,7 +174,7 @@ syscall_get_args (void *esp, int *arg, int count)
 		success = check_address (esp + 4 * (i + 1));
 		
 		if (success)
-  		arg[i] = (int *)(esp + 4 * (i + 1));
+  		arg[i] = *(int *)(esp + 4 * (i + 1));
 		else
 			break;
 	}

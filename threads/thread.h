@@ -5,6 +5,7 @@
 #include <list.h>
 #include <stdint.h>
 #include "threads/synch.h"
+#include "filesys/file.h"
 
 /* States in a thread's life cycle. */
 enum thread_status
@@ -105,13 +106,17 @@ struct thread
 		struct list_elem donate_elem;       /* List element for priority donation. */
 		struct lock *lock_add;              /* Lock address which is waiting for. */
 
-		/* Add codes for syscall and process hierarchy. */
+    /* Add codes for syscall and process hierarchy. */
 		struct list child_list;             /* List of current thread's child process. */
 		struct list_elem child_elem;        /* List element of child. */
-		struct semaphore sema;              /* Current thread's semaphore. */
+		struct semaphore sema_load;         /* Load semaphore. 
+																					 sema_up regardless of that load is successful.*/
+		struct semaphore sema_exit;         /* Wait semaphore wait for thread_exit ().*/
 		struct thread *parent;              /* Threads should have to know their parent. */ 
-		int flag_load;
+		int flag_load;                      /* Status that load is successful. */
 		int exit_status;                    /* Status whether it exited properly. */
+		//struct file fdt[128];               /* File Descriptor Table. */
+		int next_fd;                        /* Next File Descriptor number. */
 
 #ifdef USERPROG
     /* Owned by userprog/process.c. */

@@ -106,7 +106,7 @@ start_process (void *file_name_)
 		thread_current ()->flag_load = 1;
 		arg_stack_push (&parse, argc, &if_.esp);
 	}
-	sema_up (&thread_current ()->sema);
+	sema_up (&thread_current ()->sema_load);
 
 	/* Added code for debugging. */
 	hex_dump (if_.esp, if_.esp, PHYS_BASE - if_.esp, true);
@@ -196,13 +196,15 @@ process_wait (tid_t child_tid)
 		return -1;
 
 	/* In the case that child process is exist. */
-  sema_down (&child->sema);             /* Wait for exit child process. */
+  sema_down (&child->sema_exit);        /* Wait for exit child process. */
 	retval = child->exit_status;          /* Save its status. */ 
   list_remove (&child->child_elem);     /* Remove from list. */
   palloc_free_page (child);             /* Free struct thread *child. */
 
+	/*
 	if (retval != 0)
 		retval = -1;
+  */
 
   return retval;
 }

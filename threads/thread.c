@@ -217,7 +217,8 @@ thread_create (const char *name, int priority,
   sf->ebp = 0;
 
 	/* Added codes for syscall process hierarchy. */
-	sema_init (&t->sema, 0);
+	sema_init (&t->sema_exit, 0);
+	sema_init (&t->sema_load, 0);
 	t->parent = &parent;
 	t->flag_load = 0;
 	t->exit_status = -1;    /* thread_exit () will make the value 0 when if
@@ -327,7 +328,7 @@ thread_exit (void)
   intr_disable ();
   list_remove (&thread_current()->allelem);
   t->status = THREAD_DYING;
-	sema_up (&t->sema);               /* Added code for syscall. */
+	sema_up (&t->sema_exit);               /* Added code for syscall. */
   schedule ();
   NOT_REACHED ();
 }
