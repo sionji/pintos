@@ -205,6 +205,9 @@ thread_create (const char *name, int priority,
 													   it exits properly. */
   list_push_back (&parent->child_list, &t->child_elem);
 
+	/* Added codes for file descriptor. */
+
+
   /* Prepare thread for first run by initializing its stack.
      Do this atomically so intermediate values for the 'stack' 
      member cannot be observed. */

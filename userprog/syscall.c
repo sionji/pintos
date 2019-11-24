@@ -45,7 +45,7 @@ syscall_handler (struct intr_frame *f)
 	   2. Perform the action appropriate for the system call.
 	   3. If syscall needs return value, then save in f->eax.
 	   4. Break the switch-case. */
-  printf ("system call!\n");
+  //printf ("system call!\n");
 	switch (sysnum) 
 	{
 		case SYS_HALT :                   /* Halt the operating system. */
@@ -58,7 +58,7 @@ syscall_handler (struct intr_frame *f)
 		    f->eax = status = *(int *)arg[0];
 
 			  t->exit_status = status;
-			  printf ("Process %s will exit with status '%d'. \n", t->name, status);
+			  printf ("%s: exit(%d)\n", t->name, status);
 			  thread_exit ();
 			  break;
 			}
@@ -139,26 +139,22 @@ syscall_handler (struct intr_frame *f)
 			}
 
 		case SYS_READ :                   /* Read from a file. */
-			break;
 
 		case SYS_WRITE :                  /* Write to a file. */
-			break;
 
 		case SYS_SEEK :                   /* Change position in a file. */
-			break;
 
 		case SYS_TELL :                   /* Report current position in a file. */
-			break;
 
 		case SYS_CLOSE :                  /* Close a file. */
-			break;
 
     default :
+			thread_exit ();
 		  break;
 	}
 
   EXIT :
-    thread_exit ();
+	  return;
 }
 
 bool

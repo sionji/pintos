@@ -8,6 +8,7 @@
 #include "userprog/gdt.h"
 #include "userprog/pagedir.h"
 #include "userprog/tss.h"
+#include "userprog/syscall.h"
 #include "filesys/directory.h"
 #include "filesys/file.h"
 #include "filesys/filesys.h"
@@ -78,10 +79,10 @@ start_process (void *file_name_)
 		argc++;
 	}
 
-	/* Codes for debugging. 
+	/* Codes for debugging.  
 	for (i = 0; i < argc ; i++)
 		printf ("parse[%d] : %s \n", i, parse[i]);
-		*/
+	*/	
 
   /* Initialize interrupt frame and load executable. */
   memset (&if_, 0, sizeof if_);
@@ -92,6 +93,14 @@ start_process (void *file_name_)
 		 success = load (file_name, &if_.eip, &if_.esp); */
   success = load (parse[0], &if_.eip, &if_.esp);
   
+  /* Added code for argument stack push and syscall hierarchy. */
+	if (success)
+	{
+		thread_current ()->flag_load = 1;
+		/* Stack push must be executed before free its page. */
+		arg_stack_push (&parse, argc, &if_.esp); 
+	}
+
   /* If load failed, quit. */
   palloc_free_page (file_name);
   if (!success) 
@@ -100,16 +109,10 @@ start_process (void *file_name_)
     thread_exit ();
 	}
 
-	/* Added code for argument stack push and syscall hierarchy. */
-	else
-	{
-		thread_current ()->flag_load = 1;
-		arg_stack_push (&parse, argc, &if_.esp);
-	}
 	sema_up (&thread_current ()->sema_load);
 
 	/* Added code for debugging. */
-	hex_dump (if_.esp, if_.esp, PHYS_BASE - if_.esp, true);
+	//hex_dump (if_.esp, if_.esp, PHYS_BASE - if_.esp, true);
 
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
@@ -127,12 +130,11 @@ arg_stack_push (char **parse, int argc, void **esp)
 {
 	short total = 0;
 	short remainder;
-	size_t chr_len = 0;
+	int chr_len = 0;
 	int num;
 	char **argv[argc+1];
-	void **old_esp;
 
-	// printf ("Check point #1\n");
+	//printf ("Check point #1\n");
 	/* Do strlcpy to each parse[] and save address to each argv[]. */
 	for (num = argc-1; num >= 0; num--)
 	{
@@ -143,7 +145,7 @@ arg_stack_push (char **parse, int argc, void **esp)
 		total += chr_len + 1;
 	}
 
-	// printf ("Check point #2\n");
+	//printf ("Check point #2\n");
 	/* Check the world-align padding in multiple of 4.
 	   PintOS is 32bit operating system, which means PC Register is 32bit long.
 	   32bit is same as 4byte. Typically, PC value is automatically increases 
@@ -156,7 +158,7 @@ arg_stack_push (char **parse, int argc, void **esp)
 		total += 1;
 	}
 
-	// printf ("Check point #3\n");
+	//printf ("Check point #3\n");
 	/* Write the address of each argv[]. */
 	*esp -= 4;
 	**(uint32_t **) esp = 0;	   /* Null char padding. */
@@ -187,8 +189,6 @@ process_wait (tid_t child_tid)
 {
 	int retval;
 	struct thread *child;
-	struct list_elem *e;
-	struct thread *t = thread_current ();
 	child = find_child (child_tid);
 
 	/* If child process isn't exist, then... */ 
