@@ -170,7 +170,7 @@ arg_stack_push (char **parse, int argc, void **esp)
 	*esp -= 4;
 	**(uint32_t **) esp = *esp + 4;    /* Save address of argv. */
 	*esp -= 4;
-	**(int **) esp = argc;        /* Save value of argc. */
+	**(int **) esp = argc;             /* Save value of argc. */
 	*esp -= 4;
 	**(uint32_t **) esp = 0;           /* Save fake return address '0'. */
 }

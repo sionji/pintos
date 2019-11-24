@@ -28,7 +28,7 @@ syscall_handler (struct intr_frame *f)
 {
 	int sysnum = *(int *)(f->esp);
 	struct thread *t = thread_current ();
-	int arg[3];
+	int i, arg[3];
 	bool success;
 
 	/* Check the esp has valid address. */
@@ -36,16 +36,25 @@ syscall_handler (struct intr_frame *f)
 		goto EXIT;
 
 	/* Check address of each esp and save its address to arg[]. */
-	success = syscall_get_args (f->esp, arg, syscall_get_cnt (sysnum));
+	i = syscall_get_cnt (sysnum);
+	printf ("syscnt = %d\n", i);
+	success = syscall_get_args (f->esp, arg, i);
 	if (!success)
 		goto EXIT;
+
+	/* Codes for debugging. */
+	printf ("success? : %d\n", success);
+	for (i = 0; i < 4; i++)
+	{
+		printf("arg[%d] : %d\n", i, arg);
+	}
 
 	/* System call codes are written in the following order.
 	   1. Saves the value in variable via de-referencing. 
 	   2. Perform the action appropriate for the system call.
 	   3. If syscall needs return value, then save in f->eax.
 	   4. Break the switch-case. */
-  //printf ("system call!\n");
+  printf ("system call!\n");
 	switch (sysnum) 
 	{
 		case SYS_HALT :                   /* Halt the operating system. */
@@ -58,7 +67,7 @@ syscall_handler (struct intr_frame *f)
 		    f->eax = status = *(int *)arg[0];
 
 			  t->exit_status = status;
-			  printf ("%s: exit(%d)\n", t->name, status);
+			  printf ("%s: exit(%d)\n", thread_name(), status);
 			  thread_exit ();
 			  break;
 			}
@@ -227,44 +236,58 @@ put_user (uint8_t *udst, uint8_t byte)
 int
 syscall_get_cnt (int sysnum)
 {
+	int retval;
 	switch (sysnum)
 	{
     /* Projects 2 and later. */
     SYS_HALT :                   /* Halt the operating system. */
-		  return 0;
+		  retval = 0;
+			break;
     SYS_EXIT :                   /* Terminate this process. */
     SYS_EXEC :                   /* Start another process. */
     SYS_WAIT :                  /* Wait for a child process to die. */
-			return 1;
+			retval = 1;
+			break;
     SYS_CREATE :                 /* Create a file. */
-			return 2;
+			retval = 2;
+			break;
     SYS_REMOVE :                 /* Delete a file. */
     SYS_OPEN :                   /* Open a file. */
     SYS_FILESIZE :               /* Obtain a file's size. */
-			return 1;
+			retval = 1;
+			break;
     SYS_READ :                   /* Read from a file. */
     SYS_WRITE :                  /* Write to a file. */
-			return 3;
+			retval = 3;
+			break;
     SYS_SEEK :                   /* Change position in a file. */
-			return 2;
+			retval = 2;
+			break;
     SYS_TELL :                   /* Report current position in a file. */
     SYS_CLOSE :                  /* Close a file. */
-			return 1;
+			retval = 1;
+			break;
 
     /* Project 3 and optionally project 4. */
     SYS_MMAP :                    /* Map a file into memory. */
-			return 2;
+			retval = 2;
+			break;
     SYS_MUNMAP :                 /* Remove a memory mapping. */
-			return 1;
+			retval = 1;
+			break;
 
     /* Project 4 only. */
     SYS_CHDIR :                  /* Change the current directory. */
     SYS_MKDIR :                  /* Create a directory. */
-			return 1;
+			retval = 1;
+			break;
     SYS_READDIR :                /* Reads a directory entry. */
-			return 2;
+			retval = 2;
+			break;
     SYS_ISDIR :                  /* Tests if a fd represents a directory. */
     SYS_INUMBER :                 /* Returns the inode number for a fd. */
-			return 1;
+			retval = 1;
+			break;
 	}
+	return retval;
 }
