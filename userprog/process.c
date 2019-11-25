@@ -8,6 +8,7 @@
 #include "userprog/gdt.h"
 #include "userprog/pagedir.h"
 #include "userprog/tss.h"
+#include "userprog/syscall.h"
 #include "filesys/directory.h"
 #include "filesys/file.h"
 #include "filesys/filesys.h"
@@ -20,6 +21,7 @@
 
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
+void arg_stack_push (char **parse, int argc, void **esp);
 
 /* Starts a new thread running a user program loaded from
    FILENAME.  The new thread may be scheduled (and may even exit)
@@ -28,6 +30,8 @@ static bool load (const char *cmdline, void (**eip) (void), void **esp);
 tid_t
 process_execute (const char *file_name) 
 {
+	char file_name_[LOADER_ARGS_LEN / 2 + 1];
+	char *token, *save_ptr;			/* Added code. */
   char *fn_copy;
   tid_t tid;
 
@@ -38,10 +42,17 @@ process_execute (const char *file_name)
     return TID_ERROR;
   strlcpy (fn_copy, file_name, PGSIZE);
 
+	/* Added codes for argument parsing. */
+	strlcpy (file_name_, file_name, strlen (file_name) + 1);
+	token = strtok_r (file_name_, " ", &save_ptr);
+
   /* Create a new thread to execute FILE_NAME. */
-  tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
+  /* Old code.
+		 tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy); */
+  tid = thread_create (token, PRI_DEFAULT, start_process, fn_copy);
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy); 
+
   return tid;
 }
 
@@ -53,18 +64,55 @@ start_process (void *file_name_)
   char *file_name = file_name_;
   struct intr_frame if_;
   bool success;
+  
+	char *token, *save_ptr;			/* Added codes. */
+	char *parse[LOADER_ARGS_LEN / 2 + 1];
+	int argc = 0;
+
+	int i = 0; /* Debugging code */
+	
+	/* Added codes from argument parsing. Parse a name of file. */
+	for (token = strtok_r (file_name, " ", &save_ptr);
+			 token != NULL; token = strtok_r (NULL, " ", &save_ptr))
+	{
+		parse[argc] = token;
+		argc++;
+	}
+
+	/* Codes for debugging.  
+	for (i = 0; i < argc ; i++)
+		printf ("parse[%d] : %s \n", i, parse[i]);
+	*/	
 
   /* Initialize interrupt frame and load executable. */
   memset (&if_, 0, sizeof if_);
   if_.gs = if_.fs = if_.es = if_.ds = if_.ss = SEL_UDSEG;
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
-  success = load (file_name, &if_.eip, &if_.esp);
+  /* Old code.
+		 success = load (file_name, &if_.eip, &if_.esp); */
+  success = load (parse[0], &if_.eip, &if_.esp);
+  
+  /* Added code for argument stack push and syscall hierarchy. */
+	if (success)
+	{
+		thread_current ()->flag_load = 1;
+		/* Stack push must be executed before free its page. */
+		arg_stack_push (&parse, argc, &if_.esp); 
+	}
 
   /* If load failed, quit. */
   palloc_free_page (file_name);
   if (!success) 
+	{
+		thread_current ()->flag_load = -1;
     thread_exit ();
+	}
+
+	sema_up (&thread_current ()->sema_load);
+
+	/* Added code for debugging. */
+	//hex_dump (if_.esp, if_.esp, PHYS_BASE - if_.esp, true);
 
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
@@ -74,6 +122,57 @@ start_process (void *file_name_)
      and jump to it. */
   asm volatile ("movl %0, %%esp; jmp intr_exit" : : "g" (&if_) : "memory");
   NOT_REACHED ();
+}
+
+/* Added codes from argument parsing. Push intr_fram USER stack. */
+void 
+arg_stack_push (char **parse, int argc, void **esp)
+{
+	short total = 0;
+	short remainder;
+	int chr_len = 0;
+	int num;
+	char **argv[argc+1];
+
+	//printf ("Check point #1\n");
+	/* Do strlcpy to each parse[] and save address to each argv[]. */
+	for (num = argc-1; num >= 0; num--)
+	{
+    chr_len = strlen (parse[num]);  /* Length of parsed char. */
+		*esp -= chr_len + 1;  /* You must calculate null char (\0). */
+		argv[num] = *esp;     /* Save the current esp address to argv[]. */
+		strlcpy (*esp, parse[num], chr_len + 1);
+		total += chr_len + 1;
+	}
+
+	//printf ("Check point #2\n");
+	/* Check the world-align padding in multiple of 4.
+	   PintOS is 32bit operating system, which means PC Register is 32bit long.
+	   32bit is same as 4byte. Typically, PC value is automatically increases 
+		 as length of PC bits (PC = PC + 4byte). And also, Char type is 1byte. 
+	   That's why padding is should be done in multiple of 4.*/
+	for (remainder = total % 4; remainder > 0; remainder = total % 4)
+	{
+		*esp -= 1;
+		**(uint8_t **) esp = 0;
+		total += 1;
+	}
+
+	//printf ("Check point #3\n");
+	/* Write the address of each argv[]. */
+	*esp -= 4;
+	**(uint32_t **) esp = 0;	   /* Null char padding. */
+	for (num = argc-1; num >= 0; num--)
+	{
+		*esp -= 4;
+		**(uint32_t **) esp = argv[num];
+	}
+	*esp -= 4;
+	**(uint32_t **) esp = *esp + 4;    /* Save address of argv. */
+	*esp -= 4;
+	**(int **) esp = argc;             /* Save value of argc. */
+	*esp -= 4;
+	**(uint32_t **) esp = 0;           /* Save fake return address '0'. */
 }
 
 /* Waits for thread TID to die and returns its exit status.  If
@@ -86,9 +185,28 @@ start_process (void *file_name_)
    This function will be implemented in problem 2-2.  For now, it
    does nothing. */
 int
-process_wait (tid_t child_tid UNUSED) 
+process_wait (tid_t child_tid) 
 {
-  return -1;
+	int retval;
+	struct thread *child;
+	child = find_child (child_tid);
+
+	/* If child process isn't exist, then... */ 
+	if (child == NULL)
+		return -1;
+
+	/* In the case that child process is exist. */
+  sema_down (&child->sema_exit);        /* Wait for exit child process. */
+	retval = child->exit_status;          /* Save its status. */ 
+  list_remove (&child->child_elem);     /* Remove from list. */
+  palloc_free_page (child);             /* Free struct thread *child. */
+
+	/*
+	if (retval != 0)
+		retval = -1;
+  */
+
+  return retval;
 }
 
 /* Free the current process's resources. */
@@ -229,6 +347,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
       goto done; 
     }
 
+	/* Parse the ELF file and get the ELF header */
   /* Read and verify executable header. */
   if (file_read (file, &ehdr, sizeof ehdr) != sizeof ehdr
       || memcmp (ehdr.e_ident, "\177ELF\1\1\1", 7)
@@ -248,6 +367,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
     {
       struct Elf32_Phdr phdr;
 
+			/* load segment information*/
       if (file_ofs < 0 || file_ofs > file_length (file))
         goto done;
       file_seek (file, file_ofs);
@@ -291,6 +411,8 @@ load (const char *file_name, void (**eip) (void), void **esp)
                   read_bytes = 0;
                   zero_bytes = ROUND_UP (page_offset + phdr.p_memsz, PGSIZE);
                 }
+
+							/* load the executable file */
               if (!load_segment (file, file_page, (void *) mem_page,
                                  read_bytes, zero_bytes, writable))
                 goto done;

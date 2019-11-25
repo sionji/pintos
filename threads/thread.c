@@ -183,6 +183,7 @@ thread_create (const char *name, int priority,
   struct switch_threads_frame *sf;
   tid_t tid;
   enum intr_level old_level;
+	struct thread *parent = thread_current ();
 
   ASSERT (function != NULL);
 
@@ -194,6 +195,18 @@ thread_create (const char *name, int priority,
   /* Initialize thread. */
   init_thread (t, name, priority);
   tid = t->tid = allocate_tid ();
+
+  /* Added codes for syscall process hierarchy. */
+	sema_init (&t->sema_exit, 0);
+	sema_init (&t->sema_load, 0);
+	t->parent = &parent;
+	t->flag_load = 0;
+	t->exit_status = -1;    /* thread_exit () will make the value 0 when if
+													   it exits properly. */
+  list_push_back (&parent->child_list, &t->child_elem);
+
+	/* Added codes for file descriptor. */
+
 
   /* Prepare thread for first run by initializing its stack.
      Do this atomically so intermediate values for the 'stack' 
@@ -304,18 +317,21 @@ thread_tid (void)
 void
 thread_exit (void) 
 {
+	struct thread *t = thread_current ();
   ASSERT (!intr_context ());
 
 #ifdef USERPROG
   process_exit ();
 #endif
 
+	sema_up (&t->sema_exit);               /* Added code for syscall. */
+
   /* Remove thread from all threads list, set our status to dying,
      and schedule another process.  That process will destroy us
      when it calls thread_schedule_tail(). */
   intr_disable ();
   list_remove (&thread_current()->allelem);
-  thread_current ()->status = THREAD_DYING;
+  t->status = THREAD_DYING;
   schedule ();
   NOT_REACHED ();
 }
@@ -607,6 +623,10 @@ init_thread (struct thread *t, const char *name, int priority)
 	list_init (&t->donation);
 	t->lock_add = NULL;
 
+	/* Added codes for syscall process hierarchy. */ 
+	list_init (&t->child_list);
+	t->parent = NULL;
+
   t->magic = THREAD_MAGIC;
   list_push_back (&all_list, &t->allelem);
 }
@@ -680,7 +700,7 @@ thread_schedule_tail (struct thread *prev)
   if (prev != NULL && prev->status == THREAD_DYING && prev != initial_thread) 
     {
       ASSERT (prev != cur);
-      palloc_free_page (prev);
+      // palloc_free_page (prev);  /* IT WILL BE DELETEED BY process_wait (). */
     }
 }
 
