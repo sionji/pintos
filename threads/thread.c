@@ -324,7 +324,8 @@ thread_exit (void)
   process_exit ();
 #endif
 
-	sema_up (&t->sema_exit);               /* Added code for syscall. */
+	if (t != initial_thread)
+  	sema_up (&t->sema_exit);               /* Added code for syscall. */
 
   /* Remove thread from all threads list, set our status to dying,
      and schedule another process.  That process will destroy us

@@ -96,6 +96,7 @@ start_process (void *file_name_)
   /* Added code for argument stack push and syscall hierarchy. */
 	if (success)
 	{
+		printf ("load success...\n");
 		thread_current ()->flag_load = 1;
 		/* Stack push must be executed before free its page. */
 		arg_stack_push (&parse, argc, &if_.esp); 
@@ -112,7 +113,7 @@ start_process (void *file_name_)
 	sema_up (&thread_current ()->sema_load);
 
 	/* Added code for debugging. */
-	//hex_dump (if_.esp, if_.esp, PHYS_BASE - if_.esp, true);
+	hex_dump (if_.esp, if_.esp, PHYS_BASE - if_.esp, true);
 
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
