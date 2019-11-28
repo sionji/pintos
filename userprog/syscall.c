@@ -29,7 +29,7 @@ static void
 syscall_handler (struct intr_frame *f) 
 {
 	int sysnum = *(int *)(f->esp);
-	int args[3];
+	int args[4];
 
 	/* Check the esp has valid address. */
   check_address (f->esp);
@@ -39,7 +39,6 @@ syscall_handler (struct intr_frame *f)
 	   2. Perform the action appropriate for the system call.
 	   3. If syscall needs return value, then save in f->eax.
 	   4. Break the switch-case. */
-  printf ("system call!\n");
 	switch (sysnum) 
 	{
 		case SYS_HALT :                   /* Halt the operating system. */
@@ -184,23 +183,22 @@ syscall_handler (struct intr_frame *f)
 				unsigned size;
 				struct file *file;
 				syscall_get_args (f->esp, args, 3);
-				fd = (int) args[0];
-				buffer = (void *) args[1];
-				size = (unsigned) args[2];
+				fd = (int)args[0];
+				buffer = (char *)args[1];
+				size = (unsigned)args[2];
 				
-				printf ("fd : %d\n", fd);
-
 				file = process_get_file (fd);
-				lock_acquire (&filesys_lock);
 				if (fd == 1)
 				{
 					putbuf(buffer, size);
 					retval = size;
 				}
 				else if (file != NULL)
+				{
+  				lock_acquire (&filesys_lock);
 					retval = file_write (file, buffer, size);
-        
-				lock_release (&filesys_lock);
+        	lock_release (&filesys_lock);
+				}
 				f->eax = retval;
 				break;
 			}
