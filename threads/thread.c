@@ -183,7 +183,6 @@ thread_create (const char *name, int priority,
   struct switch_threads_frame *sf;
   tid_t tid;
   enum intr_level old_level;
-	struct thread *parent = thread_current ();
 
   ASSERT (function != NULL);
 
@@ -199,14 +198,15 @@ thread_create (const char *name, int priority,
   /* Added codes for syscall process hierarchy. */
 	sema_init (&t->sema_exit, 0);
 	sema_init (&t->sema_load, 0);
-	t->parent = &parent;
+	t->parent = thread_current ();
 	t->flag_load = 0;
 	t->exit_status = -1;    /* thread_exit () will make the value 0 when if
 													   it exits properly. */
-  list_push_back (&parent->child_list, &t->child_elem);
+  list_push_back (&thread_current ()->child_list, &t->child_elem);
 
 	/* Added codes for file descriptor. */
-
+  t->fdt = palloc_get_page(0);
+	t->next_fd = 2;
 
   /* Prepare thread for first run by initializing its stack.
      Do this atomically so intermediate values for the 'stack' 
@@ -367,7 +367,7 @@ thread_yield (void)
  inversed. */
 bool
 thread_less_func (const struct list_elem *a, 
-		const struct list_elem *b, void *aux)
+		const struct list_elem *b, void *aux UNUSED)
 {
 	return ( (list_entry(a, struct thread, elem)->priority)
 			> (list_entry(b, struct thread, elem)->priority)? true : false );

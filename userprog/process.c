@@ -201,12 +201,7 @@ process_wait (tid_t child_tid)
 	retval = child->exit_status;          /* Save its status. */ 
   list_remove (&child->child_elem);     /* Remove from list. */
   palloc_free_page (child);             /* Free struct thread *child. */
-
-	/*
-	if (retval != 0)
-		retval = -1;
-  */
-
+	
   return retval;
 }
 
@@ -216,6 +211,15 @@ process_exit (void)
 {
   struct thread *cur = thread_current ();
   uint32_t *pd;
+	int i;          /* Added code. */
+
+  /* Added codes for file descriptor. Close every opened files 
+		 and free file_descriptor_table memory. */
+	for (i = cur->next_fd - 1; i > 1; i--)
+	{
+	  process_close_file (i);
+	}
+	palloc_free_page (cur->fdt);
 
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
@@ -233,6 +237,62 @@ process_exit (void)
       pagedir_activate (NULL);
       pagedir_destroy (pd);
     }
+}
+
+struct thread *
+find_child (int tid)
+{
+	struct thread *t = thread_current ();
+	struct list_elem *e;
+	for (e = list_begin (&t->child_list); e != list_end (&t->child_list);
+    	 e = list_next (e))
+	{
+		struct thread *child = list_entry (e, struct thread, child_elem);
+		if (tid == child->tid)
+			return child;
+	}
+
+	return NULL;
+}
+
+int
+process_add_file (struct file *f)
+{
+	int retval;
+	struct thread *t = thread_current ();
+
+	if (f == NULL)
+		return -1;
+
+	retval = t->next_fd;
+	t->fdt[t->next_fd] = f;
+	t->next_fd++;
+	return retval;
+}
+
+struct file * 
+process_get_file (int fd)
+{
+	int i;
+	struct file *f;
+	struct thread *t = thread_current ();
+	
+	if (t->next_fd > fd && fd > 1)
+		return t->fdt[fd];
+	else
+		return NULL;
+}
+
+void
+process_close_file (int fd)
+{
+	struct file *f = process_get_file (fd);
+	
+	if (f != NULL)
+	{
+	  file_close (f);
+	  thread_current ()->fdt[fd] = NULL;
+	}
 }
 
 /* Sets up the CPU for running user code in the current
