@@ -116,8 +116,9 @@ struct thread
 		struct thread *parent;              /* Threads should have to know their parent. */ 
 		int flag_load;                      /* Status that load is successful. */
 		int exit_status;                    /* Status whether it exited properly. */
-		struct file **fdt[128];             /* File Descriptor Table. */
+		struct file **fdt;                  /* File Descriptor Table. */
 		int next_fd;                        /* Next File Descriptor number. */
+		struct file *run_file;              /* Current file which is executing. */
 
 #ifdef USERPROG
     /* Owned by userprog/process.c. */

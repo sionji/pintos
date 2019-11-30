@@ -2,6 +2,7 @@
 #define USERPROG_SYSCALL_H
 
 void syscall_init (void);
-struct thread * find_child (int tid);
+struct lock filesys_lock;
+void syscall_exit (int exit_status);
 
 #endif /* userprog/syscall.h */

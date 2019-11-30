@@ -96,7 +96,9 @@ start_process (void *file_name_)
   /* Added code for argument stack push and syscall hierarchy. */
 	if (success)
 	{
+		//printf ("load success...\n");
 		thread_current ()->flag_load = 1;
+    sema_up (&thread_current ()->sema_load);
 		/* Stack push must be executed before free its page. */
 		arg_stack_push (&parse, argc, &if_.esp); 
 	}
@@ -106,10 +108,9 @@ start_process (void *file_name_)
   if (!success) 
 	{
 		thread_current ()->flag_load = -1;
+    sema_up (&thread_current ()->sema_load);
     thread_exit ();
 	}
-
-	sema_up (&thread_current ()->sema_load);
 
 	/* Added code for debugging. */
 	//hex_dump (if_.esp, if_.esp, PHYS_BASE - if_.esp, true);
@@ -126,13 +127,14 @@ start_process (void *file_name_)
 
 /* Added codes from argument parsing. Push intr_fram USER stack. */
 void 
-arg_stack_push (char **parse, int argc, void **esp)
+arg_stack_push (char **parse, int argc, void **esp_)
 {
 	short total = 0;
 	short remainder;
 	int chr_len = 0;
 	int num;
 	char **argv[argc+1];
+	char **esp = (char **)esp_;
 
 	//printf ("Check point #1\n");
 	/* Do strlcpy to each parse[] and save address to each argv[]. */
@@ -200,12 +202,7 @@ process_wait (tid_t child_tid)
 	retval = child->exit_status;          /* Save its status. */ 
   list_remove (&child->child_elem);     /* Remove from list. */
   palloc_free_page (child);             /* Free struct thread *child. */
-
-	/*
-	if (retval != 0)
-		retval = -1;
-  */
-
+	
   return retval;
 }
 
@@ -215,6 +212,16 @@ process_exit (void)
 {
   struct thread *cur = thread_current ();
   uint32_t *pd;
+	int i;          /* Added code. */
+	struct file *file;
+
+  /* Added codes for file descriptor. Close every opened files 
+		 and free file_descriptor_table memory. */
+	for (i = cur->next_fd - 1; i > 1; i--)
+	{
+	  process_close_file (i);
+	}
+	palloc_free_page (cur->fdt);
 
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
@@ -232,6 +239,60 @@ process_exit (void)
       pagedir_activate (NULL);
       pagedir_destroy (pd);
     }
+}
+
+struct thread *
+find_child (int tid)
+{
+	struct thread *t = thread_current ();
+	struct list_elem *e;
+	for (e = list_begin (&t->child_list); e != list_end (&t->child_list);
+    	 e = list_next (e))
+	{
+		struct thread *child = list_entry (e, struct thread, child_elem);
+		if (tid == child->tid)
+			return child;
+	}
+
+	return NULL;
+}
+
+int
+process_add_file (struct file *f)
+{
+	int retval;
+	struct thread *t = thread_current ();
+
+	if (f == NULL)
+		return -1;
+
+	retval = t->next_fd;
+	t->fdt[t->next_fd] = f;
+	t->next_fd++;
+	return retval;
+}
+
+struct file * 
+process_get_file (int fd)
+{
+	struct thread *t = thread_current ();
+	
+	if (t->next_fd > fd && fd > 1)
+		return t->fdt[fd];
+	else
+		return NULL;
+}
+
+void
+process_close_file (int fd)
+{
+	struct file *f = process_get_file (fd);
+	
+	if (f != NULL)
+	{
+	  file_close (f);
+	  thread_current ()->fdt[fd] = NULL;
+	}
 }
 
 /* Sets up the CPU for running user code in the current
@@ -346,6 +407,10 @@ load (const char *file_name, void (**eip) (void), void **esp)
       printf ("load: %s: open failed\n", file_name);
       goto done; 
     }
+
+  /* Denying to Write file. */
+	file_deny_write (file);
+	t->run_file = file;
 
 	/* Parse the ELF file and get the ELF header */
   /* Read and verify executable header. */
