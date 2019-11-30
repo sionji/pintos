@@ -118,7 +118,7 @@ struct thread
 		int exit_status;                    /* Status whether it exited properly. */
 		struct file **fdt;                  /* File Descriptor Table. */
 		int next_fd;                        /* Next File Descriptor number. */
-		struct file *run_file;              /* Current file which is executing. */
+		struct file *run_file;              /* Running file which is executing. */
 
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
