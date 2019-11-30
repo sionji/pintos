@@ -156,6 +156,8 @@ page_fault (struct intr_frame *f)
 		syscall_exit (-1);
 	else if (is_kernel_vaddr (fault_addr))
 		syscall_exit (-1);
+	else if (not_present)
+		syscall_exit (-1);
 
   /* To implement virtual memory, delete the rest of the function
      body, and replace it with code that brings in the page to

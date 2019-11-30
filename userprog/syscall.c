@@ -210,7 +210,7 @@ syscall_handler (struct intr_frame *f)
 						retval++;
 					}
 				}
-				else if (fd != 0 && file == NULL)
+				else if (fd == 1 || file == NULL)
 					f->eax = -1;
 				else 
 					retval = file_read (file, buffer, size);
@@ -255,10 +255,10 @@ syscall_handler (struct intr_frame *f)
 					putbuf(buffer, size);
 					retval = size;
 				}
-				else if (file != NULL)
-					retval = file_write (file, buffer, size);
-				else if (file == NULL)
+				else if (file == NULL || fd == 0)
 					syscall_exit (-1);
+				else
+					retval = file_write (file, buffer, size);
        	lock_release (&filesys_lock);
 				f->eax = retval;
 				break;
