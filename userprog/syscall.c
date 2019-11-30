@@ -30,10 +30,10 @@ syscall_handler (struct intr_frame *f)
 {
 	int sysnum = *(int *)(f->esp);
 	int args[4];
+	int *ptr = f->esp;
 
 	/* Check the esp has valid address. */
   check_address (f->esp);
-
 	/* System call codes are written in the following order.
 	   1. Saves the value in variable via de-referencing. 
 	   2. Perform the action appropriate for the system call.
@@ -49,7 +49,9 @@ syscall_handler (struct intr_frame *f)
 			{
 			  int status;
 				syscall_get_args (f->esp, args, 1);
-		    status = (int)args[0];
+		    status = *(ptr+1);
+
+        //hex_dump (f->esp, f->esp, 100, true);
 
 				syscall_exit (status);
 			  break;
@@ -61,7 +63,7 @@ syscall_handler (struct intr_frame *f)
 			  char *cmd_line;
 			  int tid, retval;
 				syscall_get_args (f->esp, args, 1);
-			  cmd_line = (char *)args[0];
+			  cmd_line = (char *)*(ptr+1);
 
 			  /* Create thread, load, execute child process. */
 			  retval = tid = process_execute (cmd_line);
@@ -85,7 +87,7 @@ syscall_handler (struct intr_frame *f)
 			{
 			  int retval, pid;
 				syscall_get_args (f->esp, args, 1);
-			  pid = (int)args[0];
+			  pid = *(ptr+1);
 
 			  /* Wait for pid child process. */
 			  retval = process_wait (pid);
@@ -98,8 +100,10 @@ syscall_handler (struct intr_frame *f)
 			  char *name;
 			  int32_t initial_size;
 				syscall_get_args (f->esp, args, 2);
-		    name = (char *)args[0];
-	  		initial_size = (int32_t)args[1];
+				
+		    name = (char *)*(ptr+16);
+	  		initial_size = (int32_t)*(ptr+20);
+				
   
 		  	f->eax = filesys_create (name, initial_size);
 			  break;
@@ -109,7 +113,7 @@ syscall_handler (struct intr_frame *f)
 			{
 			  char *name;
 				syscall_get_args (f->esp, args, 1);
-			  name = (char *)args[0];
+			  name = (char *)*(ptr+1);
 
 			  f->eax = filesys_remove (name);
 			  break;
@@ -120,7 +124,7 @@ syscall_handler (struct intr_frame *f)
 				char *name;
 				struct file *file;
 				syscall_get_args (f->esp, args, 1);
-				name = (char *)args[0];
+				name = (char *)*(ptr+1);
 
 				file = filesys_open (name);
 				f->eax = process_add_file (file);
@@ -132,7 +136,7 @@ syscall_handler (struct intr_frame *f)
 				int fd;
 				struct file *file;
 				syscall_get_args (f->esp, args, 1);
-				fd = (int)args[0];
+				fd = (int)*(ptr+1);
 
 				file = process_get_file (fd);
 				if (file == NULL)
@@ -150,9 +154,9 @@ syscall_handler (struct intr_frame *f)
 				unsigned size;
 				struct file *file;
 				syscall_get_args (f->esp, args, 3);
-				fd = (int) args[0];
-				buffer = (void *) args[1];
-				size = (unsigned) args[2];
+				fd = (int)*(ptr+5);
+				buffer = (void *)*(ptr+6);
+				size = (unsigned)*(ptr+7);
 
 				file = process_get_file (fd);
 				lock_acquire (&filesys_lock);
@@ -182,23 +186,33 @@ syscall_handler (struct intr_frame *f)
 				void *buffer;
 				unsigned size;
 				struct file *file;
+
 				syscall_get_args (f->esp, args, 3);
-				fd = (int)args[0];
-				buffer = (char *)args[1];
-				size = (unsigned)args[2];
+				/*
+				fd = *(int *)args[0];
+				buffer = (void *)*(int *)args[1];
+				size = (unsigned)*(int *)args[2];
+				*/
+
+				fd = (int)*(ptr+5);
+				buffer = (char *)*(ptr+6);
+				size = (unsigned)*(ptr+7);
 				
+				printf ("CALLED variable : %d %x %u \n", fd, buffer, size);
+				hex_dump (f->esp, f->esp, 100, true);
+
 				file = process_get_file (fd);
+        lock_acquire (&filesys_lock);
 				if (fd == 1)
 				{
 					putbuf(buffer, size);
 					retval = size;
 				}
 				else if (file != NULL)
-				{
-  				lock_acquire (&filesys_lock);
 					retval = file_write (file, buffer, size);
-        	lock_release (&filesys_lock);
-				}
+				else if (file == NULL)
+					syscall_exit (-1);
+       	lock_release (&filesys_lock);
 				f->eax = retval;
 				break;
 			}
@@ -208,9 +222,9 @@ syscall_handler (struct intr_frame *f)
 				int fd;
 				unsigned position;
 				struct file *file;
-				syscall_get_args (f->esp, args, 2);
-				fd = (int)args[0];
-				position = (unsigned)args[1];
+				syscall_get_args (f->esp, &args[0], 2);
+				fd = (int)*(ptr+16);
+				position = (unsigned)*(ptr+20);
 				file = process_get_file (fd);
 				if (file != NULL)
 					file_seek (file, position); 
@@ -222,7 +236,7 @@ syscall_handler (struct intr_frame *f)
 				int fd;
 				struct file *file;
 				syscall_get_args (f->esp, args, 1);
-				fd = (int)args[0];
+				fd = (int)*(ptr+1);
 				file = process_get_file (fd);
 				if (file != NULL)
 					f->eax = file_tell (file);
@@ -234,10 +248,13 @@ syscall_handler (struct intr_frame *f)
 				int fd;
 				struct file *file;
 				syscall_get_args (f->esp, args, 1);
-				fd = (int)args[0];
+				fd = (int)*(ptr+1);
 				file = process_get_file (fd);
 				if (file != NULL)
+				{
 					file_close (file);
+					thread_current ()->fdt[fd] = NULL;
+				}
 				break;
 			}
 
@@ -254,7 +271,7 @@ syscall_get_args (void *esp, int *args, int count)
   for (i = 0; i < count; i++)
 	{
 		check_address (esp + 4 * (i + 1));
-   	args[i] = *(int *)(esp + 4 * (i + 1));
+   	args[i] = (int *)(esp + 4 * (i + 1));
 	}
 }
 

@@ -205,7 +205,7 @@ thread_create (const char *name, int priority,
   list_push_back (&thread_current ()->child_list, &t->child_elem);
 
 	/* Added codes for file descriptor. */
-  t->fdt = palloc_get_page(0);
+  t->fdt = palloc_get_page(PAL_ZERO);
 	t->next_fd = 2;
 
   /* Prepare thread for first run by initializing its stack.

@@ -96,8 +96,9 @@ start_process (void *file_name_)
   /* Added code for argument stack push and syscall hierarchy. */
 	if (success)
 	{
-		printf ("load success...\n");
+		//printf ("load success...\n");
 		thread_current ()->flag_load = 1;
+    sema_up (&thread_current ()->sema_load);
 		/* Stack push must be executed before free its page. */
 		arg_stack_push (&parse, argc, &if_.esp); 
 	}
@@ -107,10 +108,9 @@ start_process (void *file_name_)
   if (!success) 
 	{
 		thread_current ()->flag_load = -1;
+    sema_up (&thread_current ()->sema_load);
     thread_exit ();
 	}
-
-	sema_up (&thread_current ()->sema_load);
 
 	/* Added code for debugging. */
 	//hex_dump (if_.esp, if_.esp, PHYS_BASE - if_.esp, true);
@@ -127,13 +127,14 @@ start_process (void *file_name_)
 
 /* Added codes from argument parsing. Push intr_fram USER stack. */
 void 
-arg_stack_push (char **parse, int argc, void **esp)
+arg_stack_push (char **parse, int argc, void **esp_)
 {
 	short total = 0;
 	short remainder;
 	int chr_len = 0;
 	int num;
 	char **argv[argc+1];
+	char **esp = (char **)esp_;
 
 	//printf ("Check point #1\n");
 	/* Do strlcpy to each parse[] and save address to each argv[]. */
@@ -212,6 +213,7 @@ process_exit (void)
   struct thread *cur = thread_current ();
   uint32_t *pd;
 	int i;          /* Added code. */
+	struct file *file;
 
   /* Added codes for file descriptor. Close every opened files 
 		 and free file_descriptor_table memory. */
@@ -407,6 +409,10 @@ load (const char *file_name, void (**eip) (void), void **esp)
       printf ("load: %s: open failed\n", file_name);
       goto done; 
     }
+
+  /* Denying to Write file. */
+	file_deny_write (file);
+	t->run_file = file;
 
 	/* Parse the ELF file and get the ELF header */
   /* Read and verify executable header. */
