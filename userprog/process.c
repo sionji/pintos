@@ -275,8 +275,6 @@ process_add_file (struct file *f)
 struct file * 
 process_get_file (int fd)
 {
-	int i;
-	struct file *f;
 	struct thread *t = thread_current ();
 	
 	if (t->next_fd > fd && fd > 1)

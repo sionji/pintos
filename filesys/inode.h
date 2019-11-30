@@ -5,6 +5,7 @@
 #include "filesys/off_t.h"
 #include "devices/block.h"
 
+struct inode;
 struct bitmap;
 
 void inode_init (void);

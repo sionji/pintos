@@ -2,8 +2,9 @@
 #define FILESYS_FILE_H
 
 #include "filesys/off_t.h"
+#include "filesys/inode.h"
+#include <stdbool.h>
 
-struct inode;
 struct file;
 
 /* Opening and closing files. */

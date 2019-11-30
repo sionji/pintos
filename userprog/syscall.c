@@ -73,7 +73,10 @@ syscall_handler (struct intr_frame *f)
 
 			  /* If creating Thread is un-successful, then */ 
         if (t_child == NULL)
+				{
+					list_pop_back (&thread_current ()->child_list);
 				  retval = -1;
+				}
 
 			  /* In case that creating thread is successful,
 				   but load is not successful. */
@@ -135,7 +138,9 @@ syscall_handler (struct intr_frame *f)
 				/* Check each pointer have valid address. */
 				check_address ((void *)name);
 
+				lock_acquire (&filesys_lock);
 			  f->eax = filesys_remove (name);
+				lock_release (&filesys_lock);
 			  break;
 			}
 
@@ -152,8 +157,10 @@ syscall_handler (struct intr_frame *f)
 				if (name == NULL)
 					syscall_exit (-1);
 
+				lock_acquire (&filesys_lock);
 				file = filesys_open (name);
 				f->eax = process_add_file (file);
+				lock_release (&filesys_lock);
 			  break;
 			}
 
@@ -227,10 +234,8 @@ syscall_handler (struct intr_frame *f)
 				void *buffer;
 				unsigned size;
 				struct file *file;
-
 				/*
 				syscall_get_args (f->esp, args, 3);
-				
 				fd = (int)args[0];
 				buffer = (void *)args[1];
 				size = (unsigned)args[2];
@@ -256,8 +261,8 @@ syscall_handler (struct intr_frame *f)
 					retval = size;
 				}
 				else if (file == NULL || fd == 0)
-					syscall_exit (-1);
-				else
+					retval = 0;
+			  else
 					retval = file_write (file, buffer, size);
        	lock_release (&filesys_lock);
 				f->eax = retval;
