@@ -214,6 +214,7 @@ process_exit (void)
   uint32_t *pd;
 	int i;          /* Added code. */
 	struct file *file;
+	struct list_elem *e;
 
   /* Added codes for file descriptor. Close every opened files 
 		 and free file_descriptor_table memory. */
@@ -222,6 +223,12 @@ process_exit (void)
 	  process_close_file (i);
 	}
 	palloc_free_page (cur->fdt);
+
+	if (cur->run_file != NULL)
+	{
+		file_allow_write (cur->run_file);
+		file_close (cur->run_file);
+	}
 
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
@@ -255,6 +262,13 @@ find_child (int tid)
 	}
 
 	return NULL;
+}
+
+void
+remove_child_process (struct thread *cp)
+{
+	list_remove (&cp->child_elem);
+	palloc_free_page (cp);
 }
 
 int
@@ -401,16 +415,14 @@ load (const char *file_name, void (**eip) (void), void **esp)
   process_activate ();
 
   /* Open executable file. */
+	lock_acquire (&filesys_lock);
   file = filesys_open (file_name);
   if (file == NULL) 
     {
+			lock_release (&filesys_lock);
       printf ("load: %s: open failed\n", file_name);
       goto done; 
     }
-
-  /* Denying to Write file. */
-	file_deny_write (file);
-	t->run_file = file;
 
 	/* Parse the ELF file and get the ELF header */
   /* Read and verify executable header. */
@@ -497,9 +509,14 @@ load (const char *file_name, void (**eip) (void), void **esp)
 
   success = true;
 
+  /* Denying to Write file. */
+	file_deny_write (file);
+	t->run_file = file;
+	lock_release (&filesys_lock);
+
  done:
   /* We arrive here whether the load is successful or not. */
-  file_close (file);
+  //file_close (file);
   return success;
 }
 
