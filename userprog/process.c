@@ -216,6 +216,11 @@ process_exit (void)
 	struct file *file;
 	struct list_elem *e;
 
+	if (cur->run_file != NULL)
+	{
+		file_allow_write (cur->run_file);
+		file_close (cur->run_file);
+	}
   /* Added codes for file descriptor. Close every opened files 
 		 and free file_descriptor_table memory. */
 	for (i = cur->next_fd - 1; i > 1; i--)
@@ -223,12 +228,6 @@ process_exit (void)
 	  process_close_file (i);
 	}
 	palloc_free_page (cur->fdt);
-
-	if (cur->run_file != NULL)
-	{
-		file_allow_write (cur->run_file);
-		file_close (cur->run_file);
-	}
 
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */

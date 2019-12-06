@@ -69,12 +69,13 @@ syscall_handler (struct intr_frame *f)
 			  t_child = find_child (tid);
 				sema_down (&t_child->sema_load);
 
-			  /* If creating Thread is un-successful, then */ 
+			  /* If creating Thread is un-successful, then  
         if (t_child == NULL)
 				{
 					list_pop_back (&thread_current ()->child_list);
 				  retval = -1;
 				}
+				*/
 
 			  /* In case that creating thread is successful,
 				   but load is not successful. */
