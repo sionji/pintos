@@ -30,6 +30,9 @@ void arg_stack_push (char **parse, int argc, void **esp);
 tid_t
 process_execute (const char *file_name) 
 {
+	struct list_elem *e;
+	struct thread *t;
+	struct thread *cur = thread_current (); /* Added code. */
 	char file_name_[LOADER_ARGS_LEN / 2 + 1];
 	char *token, *save_ptr;			/* Added code. */
   char *fn_copy;
@@ -109,7 +112,7 @@ start_process (void *file_name_)
 	{
 		thread_current ()->flag_load = -1;
     sema_up (&thread_current ()->sema_load);
-    thread_exit ();
+    syscall_exit (-1);
 	}
 
 	/* Added code for debugging. */
