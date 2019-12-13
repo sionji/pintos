@@ -199,12 +199,12 @@ thread_create (const char *name, int priority,
 	sema_init (&t->sema_load, 0);
 	t->parent = thread_current ();
 	t->flag_load = 0;
-	t->exit_status = -1;    /* thread_exit () will make the value 0 when if
+	t->exit_status = 0;    /* thread_exit () will make the value 0 when if
 													   it exits properly. */
   list_push_back (&thread_current ()->child_list, &t->child_elem);
 
 	/* Added codes for file descriptor. */
-  t->fdt = palloc_get_page(PAL_ZERO);
+  t->fdt = palloc_get_page(0);
 	t->next_fd = 2;
 
   /* Prepare thread for first run by initializing its stack.
