@@ -1,4 +1,5 @@
 #include "vm/page.h"
+#include "userprog/syscall.h"
 #include "lib/kernel/hash.h"
 	
 static unsigned vm_hash_func (const struct hash_elem *e, void *aux UNUSED);
@@ -72,4 +73,29 @@ vm_destroy_func (struct hash_elem *e, void *aux UNUSED);
 		pagedir_clear_page (thread_current ()->pagedir, vme->vaddr);
 	}
 	free (vme);
+}
+
+void
+check_valid_buffer (void *buffer, unsigned size, void *esp, bool to_write)
+{
+	struct void *cur_buffer = buffer;
+	int i = 0;
+	for (i = 0; i < size; i++)
+	{
+		struct vm_entry *vme = check_address (cur_buffer, esp);
+		if (vme != NULL && to_write && vme->writable == false)
+			syscall_exit (-1);
+
+		cur_buffer++;
+	}
+}
+
+void
+check_valid_string (const void *str, void *esp)
+{
+	char *string = (char *)str;
+	for (; *string != 0; string += 1)
+	{
+		check_address (str, esp);
+	}
 }

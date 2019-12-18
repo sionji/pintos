@@ -224,7 +224,8 @@ process_exit (void)
 	{
 	  process_close_file (i);
 	}
-	palloc_free_page (cur->fdt);
+	//palloc_free_page (cur->fdt);
+	free (cur->fdt);
 
 	/* Added codes for VM. */
 	vm_destroy (&cur->vm);
@@ -599,10 +600,11 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       size_t page_read_bytes = read_bytes < PGSIZE ? read_bytes : PGSIZE;
       size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
+			/* Erase physical memory allocation and mapping, add vm_entry. */
 			struct vm_entry *vme = (struct vm_entry *) malloc (sizeof (struct vm_entry));
 			vme->type = VM_BIN;
 			vme->vaddr = upage;
-			vme->writeable = writeable;
+			vme->writable = writable;
 			vme->is_loaded = false;
 			vme->file = file;
 			vme->offset = ofs;
@@ -644,7 +646,7 @@ setup_stack (void **esp)
         struct vm_entry *vme = (struct vm_entry *) malloc (sizeof (struct vm_entry));
         vme->type = VM_BIN;
 	      vme->vaddr = ((uint8_t *) PHYS_BASE) - PGSIZE;
-	      vme->writeable = true;
+	      vme->writable = true;
 	      vme->is_loaded = true;
 
 	      /* Insert vm_entry to hash table. */

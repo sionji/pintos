@@ -8,7 +8,7 @@
 struct vm_entry {
 	uint8_t type;                     /* Type for VM_BIN, VM_FILE, VM_ANON. */
 	void *vaddr;                      /* page number for vm_entry. */
-	bool writeable;                   /* True : writeable, FALSE : un-writeable. */
+	bool writable;                   /* True : writable, FALSE : un-writable. */
 
 	bool is_loaded;                   /* Flag for physical memory load. */
 	struct file* file;                /* Mapped file with virtual address. */
@@ -32,3 +32,6 @@ bool insert_vme (struct hash *, struct vm_entry *);
 bool delete_vme (struct hash *, struct vm_entry *);
 struct vm_entry *find_vme (void *);
 void vm_destroy (struct hash *);
+void check_valid_buffer (void *, unsigned, void *, bool);
+void check_valid_string (const void *, void *);
+

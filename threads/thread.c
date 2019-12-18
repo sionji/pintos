@@ -198,13 +198,14 @@ thread_create (const char *name, int priority,
 	sema_init (&t->sema_exit, 0);
 	sema_init (&t->sema_load, 0);
 	t->parent = thread_current ();
-	t->flag_load = 0;
+	t->flag_load = -1;
 	t->exit_status = 0;    /* thread_exit () will make the value 0 when if
 													   it exits properly. */
   list_push_back (&thread_current ()->child_list, &t->child_elem);
 
 	/* Added codes for file descriptor. */
-  t->fdt = palloc_get_page(0);
+  //t->fdt = palloc_get_page(0);
+	t->fdt = (struct file **) malloc (sizeof (struct file *) * 128);
 	t->next_fd = 2;
 
   /* Prepare thread for first run by initializing its stack.
@@ -231,7 +232,10 @@ thread_create (const char *name, int priority,
 
   /* Add to run queue. */
   thread_unblock (t);
-	thread_priority_check ();
+
+	/* Prioirty check. */
+	if (t->priority > thread_current ()->priority)
+		thread_yield();
 
   return tid;
 }

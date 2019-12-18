@@ -10,10 +10,11 @@
 #include "threads/interrupt.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
+#include "vm/page.h"
 
 static void syscall_handler (struct intr_frame *);
 void syscall_get_args (void *esp, int *args, int count);
-void check_address (void *esp);
+struct vm_entry *check_address (void *addr, void *esp UNUSED);
 
 void
 syscall_init (void) 
@@ -27,10 +28,9 @@ syscall_handler (struct intr_frame *f)
 {
 	int sysnum = *(int *)(f->esp);
 	int args[4];
-	//int *ptr = (int *)f->esp;
 
 	/* Check the esp has valid address. */
-  check_address (f->esp);
+  check_address (f->esp, f->esp);
 
 	/* System call codes are written in the following order.
 	   1. Saves the value in variable via de-referencing. 
@@ -62,7 +62,7 @@ syscall_handler (struct intr_frame *f)
 			  cmd_line = (char *)args[0];
 
 				/* Check each pointer have valid address. */
-				check_address ((void *)cmd_line);
+				check_valid_string ((void *)cmd_line, f->esp);
 
 			  /* Create thread, load, execute child process. */
 			  retval = tid = process_execute (cmd_line);
@@ -71,13 +71,14 @@ syscall_handler (struct intr_frame *f)
 
 			  /* In case that creating thread is successful,
 				   but load is not successful. */
-			  if (t_child->flag_load == -1)
+			  if (t_child->flag_load == 1)
+					f->eax = retval;
+				else
 				{
 					process_wait (tid);
-			  	retval = -1;
+			  	f->eax = -1;
 				}
 
-			  f->eax = retval;
 			  break;
 			}
 
@@ -104,7 +105,7 @@ syscall_handler (struct intr_frame *f)
 	  		initial_size = (int32_t)args[1];
 			
 			  /* Check each pointer have valid address. */
-				check_address ((void *)name);
+				check_valid_string ((void *)name, f->esp);
 
 				if (name == NULL)
 					syscall_exit (-1);
@@ -123,7 +124,7 @@ syscall_handler (struct intr_frame *f)
 					syscall_exit (-1);
 
 				/* Check each pointer have valid address. */
-				check_address ((void *)name);
+				check_valid_string ((void *)name, f->esp);
 
 				lock_acquire (&filesys_lock);
 			  f->eax = filesys_remove (name);
@@ -139,7 +140,7 @@ syscall_handler (struct intr_frame *f)
 				name = (char *)args[0];
 
 				/* Check each pointer have valid address. */
-				check_address ((void *)name);
+				check_valid_string ((void *)name, f->esp);
 
 				if (name == NULL)
 				{
@@ -171,10 +172,9 @@ syscall_handler (struct intr_frame *f)
 		/* buffer is probably an address of the string to read. */
 		case SYS_READ :                   /* Read from a file. */
 			{
-				int i, fd, retval = 0;
+				int fd = 0;
 				void *buffer;
 				unsigned size;
-				struct file *file;
 				
 				syscall_get_args (f->esp, args, 3);
 				fd = (int)args[0];
@@ -182,35 +182,16 @@ syscall_handler (struct intr_frame *f)
 				size = (unsigned)args[2];
 				
 				/* Check each pointer have valid address. */
-				check_address ((void *)buffer);
+				check_valid_buffer (buffer, size, f->esp, true);
 
-				file = process_get_file (fd);
-				lock_acquire (&filesys_lock);
-				if (fd == 0)
-				{
-					retval = 0;
-					for (i = 0; i < size; i++)
-					{
-						*((uint8_t *)buffer + i) = input_getc();
-						if (*((char *)buffer + i) == '\n')
-							break;
-						retval++;
-					}
-				}
-				else if (fd == 1 || file == NULL)
-					f->eax = -1;
-				else
-					retval = file_read (file, buffer, size);
-				
-				lock_release (&filesys_lock);
-				f->eax = retval;
+				f->eax = syscall_read (fd, buffer, size);
 				break;
 			}
 
 		/* buffer is probably an address of the string to write. */
 		case SYS_WRITE :                  /* Write to a file. */
 			{
-				int fd, retval = 0;
+				int fd = 0;
 				void *buffer;
 				unsigned size;
 				struct file *file;
@@ -221,21 +202,9 @@ syscall_handler (struct intr_frame *f)
 				size = (unsigned)args[2];
 
 				/* Check each pointer have valid address. */
-				check_address ((void *)buffer);
+				check_valid_buffer (buffer, size, f->esp, false);
 				
-				file = process_get_file (fd);
-        lock_acquire (&filesys_lock);
-				if (fd == 1)
-				{
-					putbuf(buffer, size);
-					retval = size;
-				}
-				else if (file == NULL || fd == 0)
-					retval = 0;
-			  else
-					retval = file_write (file, buffer, size);
-       	lock_release (&filesys_lock);
-				f->eax = retval;
+				f->eax = syscall_write (fd, buffer, size);
 				break;
 			}
 			
@@ -299,13 +268,17 @@ syscall_get_args (void *esp, int *args, int count)
 	}
 }
 
-void
-check_address (void *esp)
+struct vm_entry *
+check_address (void *addr, void *esp UNUSED)
 {
-	if (!is_user_vaddr (esp))
+	if (addr < (void *)0x0804800 || addr >= (void *)0xc0000000)
 		syscall_exit (-1);
+
+	struct vm_entry *vme = find_vme (addr);
+	if (vme == NULL)
+		return;
 	else
-  	return;
+		return vme;
 }
 
 void
@@ -318,3 +291,50 @@ syscall_exit (int exit_status)
   return;
 }
 
+int
+syscall_read (int fd, void *buffer, unsigned size)
+{
+	int i, retval = 0;
+	struct file *file;
+	file = process_get_file (fd);
+	lock_acquire (&filesys_lock);
+	if (fd == 0)
+	{
+		retval = 0;
+		for (i = 0; i < size; i++)
+		{
+			*((uint8_t *)buffer + i) = input_getc();
+			if (*((char *)buffer + i) == '\n')
+				break;
+			retval++;
+		}
+	}
+	else if (fd == 1 || file == NULL)
+		retval = -1;
+	else
+		retval = file_read (file, buffer, size);
+		
+	lock_release (&filesys_lock);
+
+	return retval;
+}
+
+int
+syscall_write (int fd, void *buffer, unsigned size)
+{
+	int retval;
+	struct file *file;
+	file = process_get_file (fd);
+  lock_acquire (&filesys_lock);
+	if (fd == 1)
+	{
+		putbuf(buffer, size);
+		retval = size;
+	}
+	else if (file == NULL || fd == 0)
+		retval = 0;
+  else
+		retval = file_write (file, buffer, size);
+ 	lock_release (&filesys_lock);
+  return retval;
+}
