@@ -7,6 +7,7 @@
 #include "threads/synch.h"
 #include "filesys/file.h"
 #include "filesys/inode.h"
+#include "lib/kernel/hash.h"
 
 /* States in a thread's life cycle. */
 enum thread_status
@@ -124,6 +125,9 @@ struct thread
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
 #endif
+
+		/* Added codes for VM. */
+		struct hash vm;
 
     /* Owned by thread.c. */
     unsigned magic;                     /* Detects stack overflow. */
