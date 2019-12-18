@@ -78,7 +78,7 @@ vm_destroy_func (struct hash_elem *e, void *aux UNUSED);
 void
 check_valid_buffer (void *buffer, unsigned size, void *esp, bool to_write)
 {
-	struct void *cur_buffer = buffer;
+	void *cur_buffer = buffer;
 	int i = 0;
 	for (i = 0; i < size; i++)
 	{

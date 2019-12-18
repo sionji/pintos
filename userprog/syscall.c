@@ -202,7 +202,8 @@ syscall_handler (struct intr_frame *f)
 				size = (unsigned)args[2];
 
 				/* Check each pointer have valid address. */
-				check_valid_buffer (buffer, size, f->esp, false);
+				//check_valid_buffer (buffer, size, f->esp, false);
+				check_valid_string (buffer, f->esp);
 				
 				f->eax = syscall_write (fd, buffer, size);
 				break;
@@ -263,7 +264,7 @@ syscall_get_args (void *esp, int *args, int count)
 	int i;
   for (i = 0; i < count; i++)
 	{
-		check_address (esp + 4 * (i + 1));
+		check_address (esp + 4 * (i + 1), esp);
    	args[i] = *(int *)(esp + 4 * (i + 1));
 	}
 }
