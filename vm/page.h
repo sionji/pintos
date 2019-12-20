@@ -25,7 +25,7 @@ struct vm_entry {
 
 	/* Data structure for vm_entry */
 	struct hash_elem elem;            /* Hash table element. */
-}
+};
 
 void vm_init (struct hash *vm);
 bool insert_vme (struct hash *, struct vm_entry *);

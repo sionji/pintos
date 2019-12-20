@@ -64,7 +64,7 @@ vm_destroy (struct hash *vm)
 }
 
 static void 
-vm_destroy_func (struct hash_elem *e, void *aux UNUSED);
+vm_destroy_func (struct hash_elem *e, void *aux UNUSED)
 {
 	struct vm_entry *vme = hash_entry (e, struct vm_entry, elem);
 	if (vme->is_loaded)
