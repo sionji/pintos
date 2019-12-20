@@ -1,5 +1,7 @@
 #include "vm/page.h"
 #include "userprog/syscall.h"
+#include "userprog/process.h"
+#include "userprog/pagedir.h"
 #include "lib/kernel/hash.h"
 	
 static unsigned vm_hash_func (const struct hash_elem *e, void *aux UNUSED);
@@ -24,7 +26,7 @@ vm_hash_func (const struct hash_elem *e, void *aux UNUSED)
 static bool
 vm_less_func (const struct hash_elem *a, const struct hash_elem *b, void* aux UNUSED)
 {
-	struct vm_entry vm1, vm2;
+	struct vm_entry *vm1, *vm2;
 	vm1 = hash_entry (a, struct vm_entry, elem);
 	vm2 = hash_entry (b, struct vm_entry, elem);
 
@@ -69,7 +71,7 @@ vm_destroy_func (struct hash_elem *e, void *aux UNUSED)
 	struct vm_entry *vme = hash_entry (e, struct vm_entry, elem);
 	if (vme->is_loaded)
 	{
-		free_page (pagedir_get_page (thread_current ()->pagedir, vme->vaddr));
+		free (pagedir_get_page (thread_current ()->pagedir, vme->vaddr));
 		pagedir_clear_page (thread_current ()->pagedir, vme->vaddr);
 	}
 	free (vme);
@@ -98,4 +100,21 @@ check_valid_string (const void *str, void *esp)
 	{
 		check_address (str, esp);
 	}
+}
+
+bool
+load_file (void *kaddr, struct vm_entry *vme)
+{
+	if (vme->read_bytes <= 0)
+		return false;
+
+	off_t actual_read = file_read_at (vme->file, kaddr, vme->read_bytes, vme->offset);
+	if (actual_read != vme->read_bytes)
+	{
+		//delete_vme (&thread_current()->vm, vme);
+		return false;
+	}
+
+	memset (kaddr + vme->read_bytes, 0, vme->zero_bytes);
+	return true;
 }

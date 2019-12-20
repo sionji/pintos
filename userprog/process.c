@@ -16,8 +16,10 @@
 #include "threads/init.h"
 #include "threads/interrupt.h"
 #include "threads/palloc.h"
+#include "threads/malloc.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
+#include "vm/page.h"
 
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
@@ -79,7 +81,7 @@ start_process (void *file_name_)
 		argc++;
 	}
 
-  vm_init (thread_current ()->vm);
+  vm_init (&thread_current ()->vm);
 
   /* Initialize interrupt frame and load executable. */
   memset (&if_, 0, sizeof if_);
@@ -650,7 +652,7 @@ setup_stack (void **esp)
 	      vme->is_loaded = true;
 
 	      /* Insert vm_entry to hash table. */
-	      insert_vme (&thread_current ()->vm, vme)
+	      insert_vme (&thread_current ()->vm, vme);
 			}
       else
         palloc_free_page (kpage);
@@ -677,4 +679,40 @@ install_page (void *upage, void *kpage, bool writable)
      address, then map our page there. */
   return (pagedir_get_page (t->pagedir, upage) == NULL
           && pagedir_set_page (t->pagedir, upage, kpage, writable));
+}
+
+bool
+handle_mm_fault (struct vm_entry *vme)
+{
+	bool success = false;
+
+	if (vme->is_loaded)
+		return false;
+
+	char *kpage = palloc_get_page (PAL_USER | PAL_ZERO);
+	switch (vme->type)
+	{
+		case VM_BIN :
+			{
+				if (load_file (kpage, vme))
+					success = install_page (vme->vaddr, kpage, vme->writable);
+				break;
+			}
+
+		case VM_FILE :
+			{
+				break;
+			}
+
+		case VM_ANON :
+			{
+				break;
+			}
+	}
+
+	if (!success)
+		palloc_free_page (kpage);
+
+	vme->is_loaded = true;
+	return success;
 }

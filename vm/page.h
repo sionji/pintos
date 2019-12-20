@@ -1,3 +1,6 @@
+#ifndef VM_PAGE_H
+#define VM_PAGE_H
+
 #define VM_BIN 0
 #define VM_FILE 1
 #define VM_ANON 2
@@ -34,4 +37,6 @@ struct vm_entry *find_vme (void *);
 void vm_destroy (struct hash *);
 void check_valid_buffer (void *, unsigned, void *, bool);
 void check_valid_string (const void *, void *);
+bool load_file (void *kaddr, struct vm_entry *vme);
 
+#endif
