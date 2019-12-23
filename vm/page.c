@@ -1,7 +1,17 @@
 #include "vm/page.h"
+#include "threads/vaddr.h"
+#include "threads/palloc.h"
+#include "threads/malloc.h"
+#include "threads/thread.h"
+#include "threads/flags.h"
+#include "threads/init.h"
+#include "threads/interrupt.h"
 #include "userprog/syscall.h"
 #include "userprog/process.h"
 #include "userprog/pagedir.h"
+#include "userprog/gdt.h"
+#include "filesys/directory.h"
+#include "filesys/file.h"
 #include "lib/kernel/hash.h"
 	
 static unsigned vm_hash_func (const struct hash_elem *e, void *aux UNUSED);
@@ -71,7 +81,7 @@ vm_destroy_func (struct hash_elem *e, void *aux UNUSED)
 	struct vm_entry *vme = hash_entry (e, struct vm_entry, elem);
 	if (vme->is_loaded)
 	{
-		free (pagedir_get_page (thread_current ()->pagedir, vme->vaddr));
+		palloc_free_page (pagedir_get_page (thread_current ()->pagedir, vme->vaddr));
 		pagedir_clear_page (thread_current ()->pagedir, vme->vaddr);
 	}
 	free (vme);
@@ -105,8 +115,10 @@ check_valid_string (const void *str, void *esp)
 bool
 load_file (void *kaddr, struct vm_entry *vme)
 {
+	/* !ERROR CODE! read bytes can be minus value.
 	if (vme->read_bytes <= 0)
 		return false;
+	*/
 
 	off_t actual_read = file_read_at (vme->file, kaddr, vme->read_bytes, vme->offset);
 	if (actual_read != vme->read_bytes)
@@ -116,5 +128,6 @@ load_file (void *kaddr, struct vm_entry *vme)
 	}
 
 	memset (kaddr + vme->read_bytes, 0, vme->zero_bytes);
+	//printf ("load_file Result : true\n");
 	return true;
 }

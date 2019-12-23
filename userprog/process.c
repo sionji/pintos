@@ -604,6 +604,8 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 
 			/* Erase physical memory allocation and mapping, add vm_entry. */
 			struct vm_entry *vme = (struct vm_entry *) malloc (sizeof (struct vm_entry));
+			if (vme == NULL)
+				return false;
 			vme->type = VM_BIN;
 			vme->vaddr = upage;
 			vme->writable = writable;
@@ -646,6 +648,11 @@ setup_stack (void **esp)
 
 				/* Create and initialize vm_entry. */
         struct vm_entry *vme = (struct vm_entry *) malloc (sizeof (struct vm_entry));
+				if (vme == NULL)
+				{
+					palloc_free_page (kpage);
+					return false;
+				}
         vme->type = VM_BIN;
 	      vme->vaddr = ((uint8_t *) PHYS_BASE) - PGSIZE;
 	      vme->writable = true;
@@ -689,11 +696,12 @@ handle_mm_fault (struct vm_entry *vme)
 	if (vme->is_loaded)
 		return false;
 
-	char *kpage = palloc_get_page (PAL_USER | PAL_ZERO);
+	char *kpage = palloc_get_page (PAL_USER);
 	switch (vme->type)
 	{
 		case VM_BIN :
 			{
+				//printf ("CASE VM_BIN\n");
 				if (load_file (kpage, vme))
 					success = install_page (vme->vaddr, kpage, vme->writable);
 				break;
@@ -701,15 +709,23 @@ handle_mm_fault (struct vm_entry *vme)
 
 		case VM_FILE :
 			{
+				//printf ("CASE VM_FILE\n");
 				break;
 			}
 
 		case VM_ANON :
 			{
+				//printf ("CASE VM_ANON\n");
+				break;
+			}
+		default :
+			{
+				//printf ("CASE DEFAULT\n");
 				break;
 			}
 	}
 
+	//printf ("handle-mm-fault Result : %s\n", success ? "true" : "false");
 	if (!success)
 		palloc_free_page (kpage);
 
