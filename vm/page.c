@@ -115,16 +115,20 @@ check_valid_string (const void *str, void *esp)
 bool
 load_file (void *kaddr, struct vm_entry *vme)
 {
-	/* !ERROR CODE! read bytes can be minus value.
+	/* !ERROR CODE! Be aware that vme is maybe already loaded, 
+		 then we don't need to read bytes again.
 	if (vme->read_bytes <= 0)
 		return false;
 	*/
 
-	off_t actual_read = file_read_at (vme->file, kaddr, vme->read_bytes, vme->offset);
-	if (actual_read != vme->read_bytes)
+	if (vme->read_bytes > 0)
 	{
-		//delete_vme (&thread_current()->vm, vme);
-		return false;
+		off_t actual_read = file_read_at (vme->file, kaddr, vme->read_bytes, vme->offset);
+		if (actual_read != vme->read_bytes)
+		{
+			delete_vme (&thread_current()->vm, vme);
+			return false;
+		}
 	}
 
 	memset (kaddr + vme->read_bytes, 0, vme->zero_bytes);
