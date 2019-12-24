@@ -11,7 +11,7 @@
 struct vm_entry {
 	uint8_t type;                     /* Type for VM_BIN, VM_FILE, VM_ANON. */
 	void *vaddr;                      /* page number for vm_entry. */
-	bool writable;                   /* True : writable, FALSE : un-writable. */
+	bool writable;                    /* True : writable, FALSE : un-writable. */
 
 	bool is_loaded;                   /* Flag for physical memory load. */
 	struct file* file;                /* Mapped file with virtual address. */

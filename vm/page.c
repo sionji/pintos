@@ -87,6 +87,7 @@ vm_destroy_func (struct hash_elem *e, void *aux UNUSED)
 	free (vme);
 }
 
+/* to_write ? Only check_address : Check vme->writable too. */
 void
 check_valid_buffer (void *buffer, unsigned size, void *esp, bool to_write)
 {
@@ -115,18 +116,18 @@ check_valid_string (const void *str, void *esp)
 bool
 load_file (void *kaddr, struct vm_entry *vme)
 {
-	/* !ERROR CODE! Be aware that vme is maybe already loaded, 
-		 then we don't need to read bytes again.
+	/* !ERROR CODE! Consider the case where vme is already loaded. 
+		 Then we don't need to read bytes again, never return false.
 	if (vme->read_bytes <= 0)
-		return false;
-	*/
+		return false;      */
+	
 
 	if (vme->read_bytes > 0)
 	{
 		off_t actual_read = file_read_at (vme->file, kaddr, vme->read_bytes, vme->offset);
 		if (actual_read != vme->read_bytes)
 		{
-			delete_vme (&thread_current()->vm, vme);
+			delete_vme (&thread_current()->vm, vme);  /* Annotation or not? */
 			return false;
 		}
 	}

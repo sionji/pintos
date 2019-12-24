@@ -153,6 +153,7 @@ page_fault (struct intr_frame *f)
 
 	/* Added codes for Demand paging. */
 	bool success = false;
+	check_address (fault_addr, f->esp);
 
 	/* Use syscall_exit when if page fault is happened by kernel or 
 	   its address indicates kernel address. */
@@ -168,17 +169,7 @@ page_fault (struct intr_frame *f)
 			kill (f);
 		}
 	}
-	else if (is_kernel_vaddr (fault_addr))
-	{
-		syscall_exit (-1);
-		kill (f);
-	}
-	else if (!user)
-	{
-		syscall_exit (-1);
-		kill (f);
-	}
-	else if (!not_present)
+	else if (is_kernel_vaddr (fault_addr) || !user || !not_present)
 	{
 		syscall_exit (-1);
 		kill (f);

@@ -602,7 +602,8 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       size_t page_read_bytes = read_bytes < PGSIZE ? read_bytes : PGSIZE;
       size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
-			/* Erase physical memory allocation and mapping, add vm_entry. */
+			/* Erase physical memory allocation and mapping codes.
+				 Add vm_entry codes. */
 			struct vm_entry *vme = (struct vm_entry *) malloc (sizeof (struct vm_entry));
 			if (vme == NULL)
 				return false;
