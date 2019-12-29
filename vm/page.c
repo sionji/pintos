@@ -1,7 +1,17 @@
 #include "vm/page.h"
+#include "threads/vaddr.h"
+#include "threads/palloc.h"
+#include "threads/malloc.h"
+#include "threads/thread.h"
+#include "threads/flags.h"
+#include "threads/init.h"
+#include "threads/interrupt.h"
 #include "userprog/syscall.h"
 #include "userprog/process.h"
 #include "userprog/pagedir.h"
+#include "userprog/gdt.h"
+#include "filesys/directory.h"
+#include "filesys/file.h"
 #include "lib/kernel/hash.h"
 	
 static unsigned vm_hash_func (const struct hash_elem *e, void *aux UNUSED);
@@ -71,12 +81,13 @@ vm_destroy_func (struct hash_elem *e, void *aux UNUSED)
 	struct vm_entry *vme = hash_entry (e, struct vm_entry, elem);
 	if (vme->is_loaded)
 	{
-		free (pagedir_get_page (thread_current ()->pagedir, vme->vaddr));
+		palloc_free_page (pagedir_get_page (thread_current ()->pagedir, vme->vaddr));
 		pagedir_clear_page (thread_current ()->pagedir, vme->vaddr);
 	}
 	free (vme);
 }
 
+/* to_write ? Only check_address : Check vme->writable too. */
 void
 check_valid_buffer (void *buffer, unsigned size, void *esp, bool to_write)
 {
@@ -105,16 +116,23 @@ check_valid_string (const void *str, void *esp)
 bool
 load_file (void *kaddr, struct vm_entry *vme)
 {
+	/* !ERROR CODE! Consider the case where vme is already loaded. 
+		 Then we don't need to read bytes again, never return false.
 	if (vme->read_bytes <= 0)
-		return false;
+		return false;      */
+	
 
-	off_t actual_read = file_read_at (vme->file, kaddr, vme->read_bytes, vme->offset);
-	if (actual_read != vme->read_bytes)
+	if (vme->read_bytes > 0)
 	{
-		//delete_vme (&thread_current()->vm, vme);
-		return false;
+		off_t actual_read = file_read_at (vme->file, kaddr, vme->read_bytes, vme->offset);
+		if (actual_read != vme->read_bytes)
+		{
+			delete_vme (&thread_current()->vm, vme);  /* Annotation or not? */
+			return false;
+		}
 	}
 
 	memset (kaddr + vme->read_bytes, 0, vme->zero_bytes);
+	//printf ("load_file Result : true\n");
 	return true;
 }

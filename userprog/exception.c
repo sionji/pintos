@@ -153,28 +153,27 @@ page_fault (struct intr_frame *f)
 
 	/* Added codes for Demand paging. */
 	bool success = false;
+	check_address (fault_addr, f->esp);
+
+	/* Use syscall_exit when if page fault is happened by kernel or 
+	   its address indicates kernel address. */
 	if (not_present)
 	{
 		struct vm_entry *vme = find_vme (fault_addr);
 		if (vme != NULL)
 			success = handle_mm_fault (vme);
-	}
 
-	if (!success)
+		if (!success)
+		{
+			syscall_exit (-1);
+			kill (f);
+		}
+	}
+	else if (is_kernel_vaddr (fault_addr) || !user || !not_present)
 	{
 		syscall_exit (-1);
-		kill(f);
+		kill (f);
 	}
-
-	/* Use syscall_exit when if page fault is happened by kernel or 
-	   its address indicates kernel address. 
-	if (!user)
-		syscall_exit (-1);
-	else if (is_kernel_vaddr (fault_addr))
-		syscall_exit (-1);
-	else if (not_present)
-		syscall_exit (-1);
-		*/
 
   /* To implement virtual memory, delete the rest of the function
      body, and replace it with code that brings in the page to
