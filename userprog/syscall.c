@@ -381,6 +381,7 @@ syscall_mmap (int fd, void *addr)
 		return -1;
 
 	mapid_t mapid = get_mapid ();  /* Supplement. */
+
 	struct mmap_file *mmap_file = (struct mmap_file *)malloc (sizeof (struct mmap_file));
 	if (mmap_file == NULL)
 		return -1;
@@ -405,7 +406,7 @@ syscall_mmap (int fd, void *addr)
 				 Add vm_entry codes. */
 			struct vm_entry *vme = (struct vm_entry *) malloc (sizeof (struct vm_entry));
 			if (vme == NULL)
-				return false;
+				return -1;
 			vme->type = VM_FILE;
 			vme->vaddr = addr;
 			vme->writable = true;
@@ -419,8 +420,8 @@ syscall_mmap (int fd, void *addr)
 			if (!insert_vme (&thread_current ()->vm, vme))
 			{
 				//free (vme);
-				do_munmap (mmap_file);      /* Must add unmap codes later. */
-				free (mmap_file);
+				//do_munmap (mmap_file);      /* Must add unmap codes later. */
+				//free (mmap_file);
 				return -1;
 			}
 
@@ -453,7 +454,7 @@ do_munmap (struct mmap_file *mmap_file)
 			lock_acquire (&filesys_lock);
 			file_write_at (vme->file, vme->vaddr, vme->read_bytes, vme->offset);
 			lock_release (&filesys_lock);
-			palloc_free_page (vme->vaddr);
+			palloc_free_page (pagedir_get_page (thread_current ()->pagedir, vme->vaddr));
 			pagedir_clear_page (thread_current ()->pagedir, vme->vaddr);
 		}
 		/* Remove vme from vme_list. */
@@ -461,29 +462,35 @@ do_munmap (struct mmap_file *mmap_file)
 		/* Remove vme from hash table page entry. */
 		delete_vme (&thread_current ()->vm, vme);
 		/* Remove vme. */
-		free (vme);
+		//free (vme);
 	}
-
-	/* Remove mmap_file. */
-	free (mmap_file);
 }
 
 void 
 syscall_munmap (mapid_t mapid)
 {
 	struct thread *cur = thread_current ();
-	struct list_elem *e;
+	struct list_elem *e, *tmp;
 	for (e = list_begin (&cur->mmap_list); e != list_end (&cur->mmap_list);
 			 e = list_next (e))
 	{
 		struct mmap_file *mmap_file = list_entry (e, struct mmap_file, elem);
-		if (mapid == mmap_file->mapid || mapid == 0)
+		if (mapid == mmap_file->mapid || mapid == CLOSE_ALL)
 		{
 			/* Remove vm_entry. */
 			/* Remove page table entry. */
-			/* Remove mmap_file. */
-			/* File close. */
 			do_munmap (mmap_file);
+
+			/* File close. */
+			file_close (mmap_file->file);
+
+			/* Remove mmap_file from list. */
+			tmp = list_prev (e);
+			list_remove (e);
+			e = tmp;
+
+			/* Remove mmap_file. */
+			free (mmap_file);
 		}
 	}
 }

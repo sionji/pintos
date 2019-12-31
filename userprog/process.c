@@ -230,7 +230,7 @@ process_exit (void)
 	free (cur->fdt);
 
 	/* Added codes for VM. */
-	syscall_munmap (0);
+	syscall_munmap (CLOSE_ALL);
 	vm_destroy (&cur->vm);
 
   /* Destroy the current process's page directory and switch back
