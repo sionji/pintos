@@ -1,5 +1,8 @@
 #include "userprog/syscall.h"
 #include "userprog/process.h"
+#include "userprog/pagedir.h"
+#include "threads/malloc.h"
+#include "threads/palloc.h"
 #include "filesys/filesys.h"
 #include "filesys/file.h"
 #include "filesys/inode.h"
@@ -15,6 +18,8 @@
 static void syscall_handler (struct intr_frame *);
 void syscall_get_args (void *esp, int *args, int count);
 struct vm_entry *check_address (void *addr, void *esp UNUSED);
+void do_munmap (struct mmap_file *mmap_file);
+int get_mapid (void);
 
 void
 syscall_init (void) 
@@ -252,6 +257,26 @@ syscall_handler (struct intr_frame *f)
 				break;
 			}
 
+		case SYS_MMAP :
+			{
+				int fd;
+				void *vaddr;
+				syscall_get_args (f->esp, args, 2);
+				fd = (int)args[0];
+				vaddr = (void *)args[1];
+				f->eax = syscall_mmap (fd, vaddr);
+				break;
+			}
+
+		case SYS_MUNMAP :
+			{
+				mapid_t mapid;
+				syscall_get_args (f->esp, args, 1);
+				mapid = (mapid_t)args[0];
+				syscall_munmap (mapid);
+				break;
+			}
+
     default :
 			syscall_exit (-1);
 		  break;
@@ -338,4 +363,127 @@ syscall_write (int fd, void *buffer, unsigned size)
 		retval = file_write (file, buffer, size);
  	lock_release (&filesys_lock);
   return retval;
+}
+
+int 
+get_mapid (void)
+{
+	int mapid = thread_current ()->next_mapid++;
+	return mapid;
+}
+
+int 
+syscall_mmap (int fd, void *addr)
+{
+	struct file *file = process_get_file (fd);
+	file = file_reopen (file);
+	if (file == NULL)
+		return -1;
+
+	mapid_t mapid = get_mapid ();  /* Supplement. */
+	struct mmap_file *mmap_file = (struct mmap_file *)malloc (sizeof (struct mmap_file));
+	if (mmap_file == NULL)
+		return -1;
+
+	/* Initialize. */
+	mmap_file->mapid = mapid;
+	mmap_file->file = file;
+	list_init (&mmap_file->vme_list);
+
+	/* Demand paging. */
+	int32_t ofs = 0;
+	uint32_t read_bytes = file_length (file);
+  while (read_bytes > 0) 
+    {
+      /* Calculate how to fill this page.
+         We will read PAGE_READ_BYTES bytes from FILE
+         and zero the final PAGE_ZERO_BYTES bytes. */
+      size_t page_read_bytes = read_bytes < PGSIZE ? read_bytes : PGSIZE;
+      size_t page_zero_bytes = PGSIZE - page_read_bytes;
+
+			/* Erase physical memory allocation and mapping codes.
+				 Add vm_entry codes. */
+			struct vm_entry *vme = (struct vm_entry *) malloc (sizeof (struct vm_entry));
+			if (vme == NULL)
+				return false;
+			vme->type = VM_FILE;
+			vme->vaddr = addr;
+			vme->writable = true;
+			vme->is_loaded = false;
+			vme->file = file;
+			vme->offset = ofs;            /* Which value is needed? */
+			vme->read_bytes = page_read_bytes;
+			vme->zero_bytes = page_zero_bytes;
+
+			/* Insert vm_entry to hash table page entry. */
+			if (!insert_vme (&thread_current ()->vm, vme))
+			{
+				//free (vme);
+				do_munmap (mmap_file);      /* Must add unmap codes later. */
+				free (mmap_file);
+				return -1;
+			}
+
+			/* Add to vme_list. */
+			list_push_back (&mmap_file->vme_list, &vme->mmap_elem);
+
+      /* Advance. */
+      read_bytes -= page_read_bytes;
+      addr += PGSIZE;           
+			ofs += page_read_bytes;
+    }
+
+	/* Add element to mmap_list. */
+	list_push_back (&thread_current ()->mmap_list, &mmap_file->elem);
+
+	return mapid;
+}
+
+/* Remove every vm_entry related to vme_list. */
+void
+do_munmap (struct mmap_file *mmap_file)
+{
+	struct list_elem *e;
+	for (e = list_begin (&mmap_file->vme_list); e != list_end (&mmap_file->vme_list);
+			 e = list_next (e))
+	{
+		struct vm_entry *vme = list_entry (e, struct vm_entry, mmap_elem);
+		if (vme->is_loaded && pagedir_is_dirty (thread_current ()->pagedir, vme->vaddr))
+		{
+			lock_acquire (&filesys_lock);
+			file_write_at (vme->file, vme->vaddr, vme->read_bytes, vme->offset);
+			lock_release (&filesys_lock);
+			palloc_free_page (vme->vaddr);
+			pagedir_clear_page (thread_current ()->pagedir, vme->vaddr);
+		}
+		/* Remove vme from vme_list. */
+		list_remove (&vme->mmap_elem);
+		/* Remove vme from hash table page entry. */
+		delete_vme (&thread_current ()->vm, vme);
+		/* Remove vme. */
+		free (vme);
+	}
+
+	/* Remove mmap_file. */
+	free (mmap_file);
+}
+
+void 
+syscall_munmap (mapid_t mapid)
+{
+	struct thread *cur = thread_current ();
+	struct list_elem *e;
+	for (e = list_begin (&cur->mmap_list); e != list_end (&cur->mmap_list);
+			 e = list_next (e))
+	{
+		struct mmap_file *mmap_file = list_entry (e, struct mmap_file, elem);
+		if (mapid == mmap_file->mapid || mapid == 0)
+		{
+			/* Remove vm_entry. */
+			/* Remove page table entry. */
+			/* Remove mmap_file. */
+			/* File close. */
+			do_munmap (mmap_file);
+		}
+	}
 }
