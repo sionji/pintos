@@ -375,18 +375,20 @@ get_mapid (void)
 int 
 syscall_mmap (int fd, void *addr)
 {
+	if ((uint32_t) addr % PGSIZE != 0 || addr == NULL)
+		return -1;
+
 	struct file *file = process_get_file (fd);
 	file = file_reopen (file);
 	if (file == NULL)
 		return -1;
-
-	mapid_t mapid = get_mapid ();  /* Supplement. */
 
 	struct mmap_file *mmap_file = (struct mmap_file *)malloc (sizeof (struct mmap_file));
 	if (mmap_file == NULL)
 		return -1;
 
 	/* Initialize. */
+	mapid_t mapid = get_mapid ();  /* Supplement. */
 	mmap_file->mapid = mapid;
 	mmap_file->file = file;
 	list_init (&mmap_file->vme_list);
@@ -419,9 +421,8 @@ syscall_mmap (int fd, void *addr)
 			/* Insert vm_entry to hash table page entry. */
 			if (!insert_vme (&thread_current ()->vm, vme))
 			{
-				//free (vme);
-				//do_munmap (mmap_file);      /* Must add unmap codes later. */
-				//free (mmap_file);
+				do_munmap (mmap_file);      /* Must add unmap codes later. */
+				free (mmap_file);
 				return -1;
 			}
 
@@ -461,8 +462,6 @@ do_munmap (struct mmap_file *mmap_file)
 		list_remove (&vme->mmap_elem);
 		/* Remove vme from hash table page entry. */
 		delete_vme (&thread_current ()->vm, vme);
-		/* Remove vme. */
-		//free (vme);
 	}
 }
 
