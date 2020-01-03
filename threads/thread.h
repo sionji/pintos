@@ -129,6 +129,10 @@ struct thread
 		/* Added codes for VM. */
 		struct hash vm;
 
+		/* Added codes for Memory Mapping File. */
+		struct list mmap_list;
+		int next_mapid;                     /* Next mapid number. */
+
     /* Owned by thread.c. */
     unsigned magic;                     /* Detects stack overflow. */
   };

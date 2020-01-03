@@ -230,6 +230,7 @@ process_exit (void)
 	free (cur->fdt);
 
 	/* Added codes for VM. */
+	syscall_munmap (CLOSE_ALL);
 	vm_destroy (&cur->vm);
 
   /* Destroy the current process's page directory and switch back
@@ -711,6 +712,8 @@ handle_mm_fault (struct vm_entry *vme)
 		case VM_FILE :
 			{
 				//printf ("CASE VM_FILE\n");
+				if (load_file (kpage, vme))
+					success = install_page (vme->vaddr, kpage, vme->writable);
 				break;
 			}
 

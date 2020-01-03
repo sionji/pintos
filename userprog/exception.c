@@ -169,7 +169,7 @@ page_fault (struct intr_frame *f)
 			kill (f);
 		}
 	}
-	else if (is_kernel_vaddr (fault_addr) || !user || !not_present)
+	else if (!user || !not_present)
 	{
 		syscall_exit (-1);
 		kill (f);

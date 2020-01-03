@@ -6,7 +6,15 @@
 #define VM_ANON 2
 
 #include "lib/kernel/hash.h"
+#include "lib/kernel/list.h"
 #include "threads/vaddr.h"
+
+struct mmap_file {
+	int mapid;                        /* Mapped id. */
+	struct file *file;                /* Mapped file pointer. */
+	struct list_elem elem;            /* List element of struct thread->mmap_list. */
+	struct list vme_list;             /* vm_entry lists of mapped file. */
+};
 
 struct vm_entry {
 	uint8_t type;                     /* Type for VM_BIN, VM_FILE, VM_ANON. */

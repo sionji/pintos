@@ -8,6 +8,7 @@
 #include "threads/interrupt.h"
 #include "threads/intr-stubs.h"
 #include "threads/palloc.h"
+#include "threads/malloc.h"
 #include "threads/switch.h"
 #include "threads/synch.h"
 #include "threads/vaddr.h"
@@ -630,6 +631,10 @@ init_thread (struct thread *t, const char *name, int priority)
 	/* Added codes for syscall process hierarchy. */ 
 	list_init (&t->child_list);
 	t->parent = NULL;
+
+	/* Added codes for Memory mapped file. */
+	list_init (&t->mmap_list);
+	t->next_mapid = 1;
 
   t->magic = THREAD_MAGIC;
   list_push_back (&all_list, &t->allelem);
