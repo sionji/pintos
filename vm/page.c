@@ -1,4 +1,6 @@
 #include "vm/page.h"
+#include "vm/frame.h"
+#include "vm/swap.h"
 #include "threads/vaddr.h"
 #include "threads/palloc.h"
 #include "threads/malloc.h"
@@ -136,3 +138,4 @@ load_file (void *kaddr, struct vm_entry *vme)
 	//printf ("load_file Result : true\n");
 	return true;
 }
+
