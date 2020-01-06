@@ -1,13 +1,9 @@
 #include "vm/frame.h"
-#include "vm/page.h"
-#include "vm/swap.h"
-#include "threads/palloc.h"
 #include "threads/malloc.h"
 #include "threads/thread.h"
-#include "threads/synch.h"
 
 struct list_elem *lru_clock;
-void try_to_free_pages (enum palloc_flags flags);
+void* try_to_free_pages (enum palloc_flags flags);
 void __free_page (struct page *page);
 
 struct page *
@@ -32,7 +28,9 @@ alloc_page (enum palloc_flags flags)
 	page->thread = thread_current ();
 
 	/* Insertion. */
+	lock_acquire (&lru_list_lock);
 	add_page_to_lru_list (page);
+	lock_release (&lru_list_lock);
 
 	return page;
 }
@@ -41,6 +39,7 @@ void
 lru_list_init (void)
 {
 	list_init (&lru_list);
+	lock_init (&lru_list_lock);
 	/* Set lru_clock value to NULL. */
 	lru_clock = list_begin (&lru_list);
 }
@@ -69,9 +68,10 @@ get_next_lru_clock (void)
 		return lru_clock;
 }
 
-void 
+void * 
 try_to_free_pages (enum palloc_flags flags)
 {
+	lock_acquire (&lru_list_lock);
 	/* Find victim page. */
 	struct page *page = list_entry (lru_clock, struct page, lru);
 	struct vm_entry *vme = page->vme;
@@ -105,13 +105,12 @@ try_to_free_pages (enum palloc_flags flags)
 					file_write_at (vme->file, vme->vaddr, vme->read_bytes, vme->offset);
 					pagedir_set_dirty (page->thread->pagedir, vme->vaddr, false);
 				}
+				page->vme->type = VM_ANON;
 				break;
 			}
 
 		case VM_ANON :
-			{
 				break;
-			}
 	}
 
 	/* Swap and free page. */
@@ -121,6 +120,8 @@ try_to_free_pages (enum palloc_flags flags)
 
 	/* Memory allocation and return it's pointer.*/
 	void *kaddr = palloc_get_page (flags);
+
+	lock_release (&lru_list_lock);
 	return kaddr;
 }
 
@@ -137,6 +138,8 @@ void
 free_page (void *kaddr)
 {
 	struct list_elem *e;
+
+	lock_acquire (&lru_list_lock);
 	for (e = list_begin (&lru_list); e != list_end (&lru_list);
 			 e = list_next (e))
 	{
@@ -144,5 +147,6 @@ free_page (void *kaddr)
 		if (page->kaddr == kaddr)
 			__free_page (page);
 	}
+	lock_release (&lru_list_lock);
 }
 

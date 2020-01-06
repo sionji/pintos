@@ -455,9 +455,13 @@ do_munmap (struct mmap_file *mmap_file)
 			lock_acquire (&filesys_lock);
 			file_write_at (vme->file, vme->vaddr, vme->read_bytes, vme->offset);
 			lock_release (&filesys_lock);
-			palloc_free_page (pagedir_get_page (thread_current ()->pagedir, vme->vaddr));
-			pagedir_clear_page (thread_current ()->pagedir, vme->vaddr);
 		}
+
+		/* Free page. */
+		//palloc_free_page (pagedir_get_page (thread_current ()->pagedir, vme->vaddr));
+		free_page (pagedir_get_page (thread_current ()->pagedir, vme->vaddr));
+		pagedir_clear_page (thread_current ()->pagedir, vme->vaddr);
+
 		/* Remove vme from vme_list. */
 		list_remove (&vme->mmap_elem);
 		/* Remove vme from hash table page entry. */

@@ -640,7 +640,8 @@ setup_stack (void **esp)
   uint8_t *kpage;
   bool success = false;
 
-  kpage = palloc_get_page (PAL_USER | PAL_ZERO);
+	struct page *page = alloc_page (PAL_USER | PAL_ZERO);
+	kpage = page->kaddr;
   if (kpage != NULL) 
     {
       success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
@@ -652,7 +653,8 @@ setup_stack (void **esp)
         struct vm_entry *vme = (struct vm_entry *) malloc (sizeof (struct vm_entry));
 				if (vme == NULL)
 				{
-					palloc_free_page (kpage);
+					//palloc_free_page (kpage);
+					free_page (kpage);
 					return false;
 				}
         vme->type = VM_BIN;
@@ -662,9 +664,11 @@ setup_stack (void **esp)
 
 	      /* Insert vm_entry to hash table. */
 	      insert_vme (&thread_current ()->vm, vme);
+				page->vme = vme;
 			}
       else
-        palloc_free_page (kpage);
+        //palloc_free_page (kpage);
+				free_page (kpage);
     }
 	
   return success;
@@ -698,28 +702,33 @@ handle_mm_fault (struct vm_entry *vme)
 	if (vme->is_loaded)
 		return false;
 
-	char *kpage = palloc_get_page (PAL_USER);
+	//char *kpage = palloc_get_page (PAL_USER);
+	struct page *page = alloc_page (PAL_USER);
+	char *kaddr = page->kaddr;
+	page->vme = vme;
 	switch (vme->type)
 	{
 		case VM_BIN :
 			{
 				//printf ("CASE VM_BIN\n");
-				if (load_file (kpage, vme))
-					success = install_page (vme->vaddr, kpage, vme->writable);
+				if (load_file (kaddr, vme))
+					success = install_page (vme->vaddr, kaddr, vme->writable);
 				break;
 			}
 
 		case VM_FILE :
 			{
 				//printf ("CASE VM_FILE\n");
-				if (load_file (kpage, vme))
-					success = install_page (vme->vaddr, kpage, vme->writable);
+				if (load_file (kaddr, vme))
+					success = install_page (vme->vaddr, kaddr, vme->writable);
 				break;
 			}
 
 		case VM_ANON :
 			{
 				//printf ("CASE VM_ANON\n");
+				swap_in (vme->swap_slot, kaddr);
+				success = install_page (vme->vaddr, kaddr, vme->writable);
 				break;
 			}
 		default :
@@ -731,7 +740,8 @@ handle_mm_fault (struct vm_entry *vme)
 
 	//printf ("handle-mm-fault Result : %s\n", success ? "true" : "false");
 	if (!success)
-		palloc_free_page (kpage);
+		//palloc_free_page (kaddr);
+		free_page (kaddr);
 
 	vme->is_loaded = true;
 	return success;

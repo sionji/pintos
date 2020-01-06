@@ -9,6 +9,8 @@
 #include "lib/kernel/list.h"
 #include "threads/vaddr.h"
 #include "threads/thread.h"
+#include "vm/frame.h"
+#include "vm/swap.h"
 
 struct mmap_file {
 	int mapid;                        /* Mapped id. */
