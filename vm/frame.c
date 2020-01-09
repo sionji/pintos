@@ -41,7 +41,12 @@ lru_list_init (void)
 	list_init (&lru_list);
 	lock_init (&lru_list_lock);
 	/* Set lru_clock value to NULL. */
-	lru_clock = list_begin (&lru_list);
+	/* !ERROR CODE! 
+		 lru_list is empty list now, so there is no element in list. 
+	   Then lru_clock may indicate NULL, 
+		 so try_to_free_pages cannot make it's entry.*/
+	//lru_clock = list_begin (&lru_list);
+	lru_clock = NULL;
 }
 
 void 
@@ -71,6 +76,9 @@ get_next_lru_clock (void)
 void * 
 try_to_free_pages (enum palloc_flags flags)
 {
+	if (lru_clock == NULL)
+		lru_clock = list_begin (&lru_list);
+
 	lock_acquire (&lru_list_lock);
 	/* Find victim page. */
 	struct page *page = list_entry (lru_clock, struct page, lru);
@@ -128,10 +136,16 @@ try_to_free_pages (enum palloc_flags flags)
 void
 __free_page (struct page *page)
 {
+	/* List remove. */
 	del_page_to_lru_list (page);
+	/* Free Physical page. */
 	palloc_free_page (page->kaddr);
-	pagedir_clear_page (page->thread->pagedir, page->kaddr);
+	/* Clear virtual page. */
+	pagedir_clear_page (page->thread->pagedir, page->vme->vaddr);
+	/* Free struct page. */
 	free (page);
+
+	/* Do not free vme because vm_destroy will be called before exit PintOS. */
 }
 
 void 
