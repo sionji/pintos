@@ -4,6 +4,7 @@
 #include "threads/palloc.h"
 #include "threads/synch.h"
 #include "userprog/pagedir.h"
+#include "userprog/syscall.h"
 #include "vm/page.h"
 
 struct list lru_list;

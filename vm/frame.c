@@ -12,7 +12,9 @@ alloc_page (enum palloc_flags flags)
 	/* If palloc_get_page is failed, try to free pages. */
 	void *kaddr = palloc_get_page (flags);
 	if (kaddr == NULL)
+	{
 		kaddr = try_to_free_pages (flags);
+	}
 	
 	/* Page & Memory allocation. */
 	struct page *page = (struct page *)malloc (sizeof (struct page));
@@ -76,58 +78,81 @@ get_next_lru_clock (void)
 void * 
 try_to_free_pages (enum palloc_flags flags)
 {
+	void *kaddr = NULL;
 	if (lru_clock == NULL)
 		lru_clock = list_begin (&lru_list);
 
 	lock_acquire (&lru_list_lock);
-	/* Find victim page. */
-	struct page *page = list_entry (lru_clock, struct page, lru);
-	struct vm_entry *vme = page->vme;
 
-	/* You must move lru_clock becasue selected page will be free. */
-	lru_clock = get_next_lru_clock ();
-	if (lru_clock == NULL)
-		return;
-
-	/* Check pagedir_is_accessed. */
-	if (pagedir_is_accessed (page->thread->pagedir, page->vme->vaddr))
-		pagedir_set_accessed (page->thread->pagedir, page->vme->vaddr, false);
-
-	/* Victim eviction. */
-	switch (page->vme->type)
+	while (kaddr == NULL)
 	{
-		case VM_BIN :
-			{
-				if (pagedir_is_dirty (page->thread->pagedir, page->vme->vaddr))
-				{
-					page->vme->type = VM_ANON;
-				}
-				break;
-			}
+		/* Find victim page. */
+		if (lru_clock == NULL)
+		{
+			lock_release (&lru_list_lock);
+			return;
+		}
+		struct page *page = list_entry (lru_clock, struct page, lru);
+		struct vm_entry *vme = page->vme;
 
-		case VM_FILE :
-			{
-				/* Check pagedir_is_dirty. */
-				if (pagedir_is_dirty (page->thread->pagedir, page->vme->vaddr))
-				{
-					file_write_at (vme->file, vme->vaddr, vme->read_bytes, vme->offset);
-					pagedir_set_dirty (page->thread->pagedir, vme->vaddr, false);
-				}
-				page->vme->type = VM_ANON;
-				break;
-			}
+		/* You must move lru_clock becasue selected page may be free. */
+		lru_clock = get_next_lru_clock ();
 
-		case VM_ANON :
-				break;
+		/* Check pagedir_is_accessed. */
+		if (pagedir_is_accessed (page->thread->pagedir, page->vme->vaddr))
+		{
+			pagedir_set_accessed (page->thread->pagedir, page->vme->vaddr, false);
+			continue;
+		}
+
+		/* Victim eviction. */
+		switch (page->vme->type)
+		{
+			case VM_BIN :
+				{
+					if (pagedir_is_dirty (page->thread->pagedir, page->vme->vaddr))
+					{
+						/* Write at swap partition and free page. */
+						page->vme->swap_slot = swap_out (page->kaddr);
+						page->vme->type = VM_ANON;
+					}
+					break;
+				}
+
+			case VM_FILE :
+				{
+					/* Check pagedir_is_dirty. */
+					if (pagedir_is_dirty (page->thread->pagedir, page->vme->vaddr))
+					{
+						/* Lock must be used at every read/write operation. 
+						   Assume that if lock is acquired by other thread,
+						   then status of current thread will be changed to THREAD_BLOCK. 
+						   If you don't use lock, it will make script confused. 
+						   (lock_held_by_current_thread () script error will cause.)  */
+						//lock_acquire (&filesys_lock);
+						file_write_at (vme->file, vme->vaddr, vme->read_bytes, vme->offset);
+						//pagedir_set_dirty (page->thread->pagedir, vme->vaddr, false);
+						//lock_release (&filesys_lock);
+					} 
+					//page->vme->swap_slot = swap_out (page->kaddr);
+					//page->vme->type = VM_ANON;
+					break;
+				}
+	
+			case VM_ANON :
+				{
+					/* Always write at swap partition. */
+					page->vme->swap_slot = swap_out (page->kaddr);
+					break;
+				}
+		}
+		/* Free page. */
+		page->vme->is_loaded = false;
+		__free_page (page);
+
+		/* Memory allocation and return it's pointer.*/
+		kaddr = palloc_get_page (flags);
 	}
-
-	/* Swap and free page. */
-	page->vme->swap_slot = swap_out (page->kaddr);
-	page->vme->is_loaded = false;
-	__free_page (page);
-
-	/* Memory allocation and return it's pointer.*/
-	void *kaddr = palloc_get_page (flags);
 
 	lock_release (&lru_list_lock);
 	return kaddr;
