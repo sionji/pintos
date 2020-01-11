@@ -129,10 +129,10 @@ try_to_free_pages (enum palloc_flags flags)
 						   then status of current thread will be changed to THREAD_BLOCK. 
 						   If you don't use lock, it will make script confused. 
 						   (lock_held_by_current_thread () script error will cause.)  */
-						//lock_acquire (&filesys_lock);
+						lock_acquire (&filesys_lock);
 						file_write_at (vme->file, vme->vaddr, vme->read_bytes, vme->offset);
 						//pagedir_set_dirty (page->thread->pagedir, vme->vaddr, false);
-						//lock_release (&filesys_lock);
+						lock_release (&filesys_lock);
 					} 
 					//page->vme->swap_slot = swap_out (page->kaddr);
 					//page->vme->type = VM_ANON;
@@ -183,8 +183,13 @@ free_page (void *kaddr)
 			 e = list_next (e))
 	{
 		struct page *page = list_entry (e, struct page, lru);
+		/* Selected list_elem will be removed from lru_list.
+		   So just use break or change list_elem before free. */
 		if (page->kaddr == kaddr)
+		{
 			__free_page (page);
+			break;
+		}
 	}
 	lock_release (&lru_list_lock);
 }

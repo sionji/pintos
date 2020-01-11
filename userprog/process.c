@@ -654,7 +654,7 @@ setup_stack (void **esp)
 				if (vme == NULL)
 				{
 					//palloc_free_page (kpage);
-					free_page (kpage);
+					free_page (page->kaddr);
 					return false;
 				}
         vme->type = VM_BIN;
@@ -668,7 +668,7 @@ setup_stack (void **esp)
 			}
       else
         //palloc_free_page (kpage);
-				free_page (kpage);
+				free_page (page->kaddr);
     }
 	
   return success;
