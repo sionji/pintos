@@ -8,6 +8,9 @@
 #include "lib/kernel/hash.h"
 #include "lib/kernel/list.h"
 #include "threads/vaddr.h"
+#include "threads/thread.h"
+#include "vm/frame.h"
+#include "vm/swap.h"
 
 struct mmap_file {
 	int mapid;                        /* Mapped id. */
@@ -38,6 +41,13 @@ struct vm_entry {
 	struct hash_elem elem;            /* Hash table element. */
 };
 
+struct page {
+	void *kaddr;
+	struct vm_entry *vme;
+	struct thread *thread;
+	struct list_elem lru;
+};
+
 void vm_init (struct hash *vm);
 bool insert_vme (struct hash *, struct vm_entry *);
 bool delete_vme (struct hash *, struct vm_entry *);
@@ -46,5 +56,6 @@ void vm_destroy (struct hash *);
 void check_valid_buffer (void *, unsigned, void *, bool);
 void check_valid_string (const void *, void *);
 bool load_file (void *kaddr, struct vm_entry *vme);
+
 
 #endif

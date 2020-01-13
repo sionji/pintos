@@ -14,10 +14,10 @@
 #include "threads/thread.h"
 #include "threads/vaddr.h"
 #include "vm/page.h"
+#include "vm/frame.h"
 
 static void syscall_handler (struct intr_frame *);
 void syscall_get_args (void *esp, int *args, int count);
-struct vm_entry *check_address (void *addr, void *esp UNUSED);
 void do_munmap (struct mmap_file *mmap_file);
 int get_mapid (void);
 
@@ -199,7 +199,6 @@ syscall_handler (struct intr_frame *f)
 				int fd = 0;
 				void *buffer;
 				unsigned size;
-				struct file *file;
 				
 				syscall_get_args (f->esp, args, 3);
 				fd = (int)args[0];
@@ -450,14 +449,20 @@ do_munmap (struct mmap_file *mmap_file)
 			 e = list_next (e))
 	{
 		struct vm_entry *vme = list_entry (e, struct vm_entry, mmap_elem);
-		if (vme->is_loaded && pagedir_is_dirty (thread_current ()->pagedir, vme->vaddr))
+		if (vme->is_loaded)
 		{
-			lock_acquire (&filesys_lock);
-			file_write_at (vme->file, vme->vaddr, vme->read_bytes, vme->offset);
-			lock_release (&filesys_lock);
-			palloc_free_page (pagedir_get_page (thread_current ()->pagedir, vme->vaddr));
+			if (pagedir_is_dirty (thread_current ()->pagedir, vme->vaddr))
+			{
+				lock_acquire (&filesys_lock);
+				file_write_at (vme->file, vme->vaddr, vme->read_bytes, vme->offset);
+				lock_release (&filesys_lock);
+			}
+			/* If vme is loaded (physical page is exist), free page. */
+			//palloc_free_page (pagedir_get_page (thread_current ()->pagedir, vme->vaddr));
+			free_page (pagedir_get_page (thread_current ()->pagedir, vme->vaddr));
 			pagedir_clear_page (thread_current ()->pagedir, vme->vaddr);
 		}
+
 		/* Remove vme from vme_list. */
 		list_remove (&vme->mmap_elem);
 		/* Remove vme from hash table page entry. */

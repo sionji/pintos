@@ -81,7 +81,8 @@ vm_destroy_func (struct hash_elem *e, void *aux UNUSED)
 	struct vm_entry *vme = hash_entry (e, struct vm_entry, elem);
 	if (vme->is_loaded)
 	{
-		palloc_free_page (pagedir_get_page (thread_current ()->pagedir, vme->vaddr));
+		/* Change palloc_get_page () to free_page (). */
+		free_page (pagedir_get_page (thread_current ()->pagedir, vme->vaddr));
 		pagedir_clear_page (thread_current ()->pagedir, vme->vaddr);
 	}
 	free (vme);
@@ -136,3 +137,4 @@ load_file (void *kaddr, struct vm_entry *vme)
 	//printf ("load_file Result : true\n");
 	return true;
 }
+

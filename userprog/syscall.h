@@ -7,6 +7,7 @@ typedef int mapid_t;
 
 void syscall_init (void);
 struct lock filesys_lock;
+struct vm_entry *check_address (void *, void *);
 
 void syscall_exit (int exit_status);
 int syscall_read (int, void *, unsigned);
