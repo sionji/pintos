@@ -84,38 +84,25 @@ try_to_free_pages (enum palloc_flags flags)
 
 	lock_acquire (&lru_list_lock);
 
-	while (kaddr == NULL)
-	{
-		/* Find victim page. */
-		if (lru_clock == NULL)
-		{
-			lock_release (&lru_list_lock);
-			return;
-		}
 		struct page *page = list_entry (lru_clock, struct page, lru);
 		struct vm_entry *vme = page->vme;
 
 		/* You must move lru_clock becasue selected page may be free. */
 		lru_clock = get_next_lru_clock ();
+		if (lru_clock == NULL)
+			return;
 
 		/* Check pagedir_is_accessed. */
 		if (pagedir_is_accessed (page->thread->pagedir, page->vme->vaddr))
-		{
 			pagedir_set_accessed (page->thread->pagedir, page->vme->vaddr, false);
-			continue;
-		}
 
 		/* Victim eviction. */
 		switch (page->vme->type)
 		{
 			case VM_BIN :
 				{
-					if (pagedir_is_dirty (page->thread->pagedir, page->vme->vaddr))
-					{
-						/* Write at swap partition and free page. */
-						page->vme->swap_slot = swap_out (page->kaddr);
-						page->vme->type = VM_ANON;
-					}
+					page->vme->type = VM_ANON;
+					page->vme->swap_slot = swap_out (page->kaddr);
 					break;
 				}
 
@@ -134,8 +121,8 @@ try_to_free_pages (enum palloc_flags flags)
 						//pagedir_set_dirty (page->thread->pagedir, vme->vaddr, false);
 						lock_release (&filesys_lock);
 					} 
-					//page->vme->swap_slot = swap_out (page->kaddr);
-					//page->vme->type = VM_ANON;
+					page->vme->type = VM_ANON;
+					page->vme->swap_slot = swap_out (page->kaddr);
 					break;
 				}
 	
@@ -152,7 +139,6 @@ try_to_free_pages (enum palloc_flags flags)
 
 		/* Memory allocation and return it's pointer.*/
 		kaddr = palloc_get_page (flags);
-	}
 
 	lock_release (&lru_list_lock);
 	return kaddr;
