@@ -162,13 +162,13 @@ __free_page (struct page *page)
 void 
 free_page (void *kaddr)
 {
-	struct list_elem *e;
-
+	struct list_elem *e, *tmp;
 	lock_acquire (&lru_list_lock);
 	for (e = list_begin (&lru_list); e != list_end (&lru_list);
-			 e = list_next (e))
+			 e = tmp)
 	{
 		struct page *page = list_entry (e, struct page, lru);
+		tmp = list_next (e);
 		/* Selected list_elem will be removed from lru_list.
 		   So just use break or change list_elem before free. */
 		if (page->kaddr == kaddr)

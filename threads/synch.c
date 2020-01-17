@@ -262,20 +262,20 @@ lock_release (struct lock *lock)
 void
 remove_donation_list (struct lock *lock)
 {
-	struct list_elem *e;
 	struct thread *t = thread_current ();
 	
 	if (list_empty (&t->donation))
 		return;
 
-	for (e = list_begin (&t->donation); e != list_end (&t->donation);
-			 e = list_next (e))
+	struct list_elem *e = list_begin (&t->donation);
+	while (e != list_end (&t->donation))
 	{
-		struct thread *f = list_entry (e, struct thread, donate_elem);
-		if (lock == f->lock_add)
-      list_remove (&f->donate_elem);
+		struct thread *cur = list_entry (e, struct thread, donate_elem);
+		if (lock == cur->lock_add)
+			e = list_remove (e);
+		else
+			e = list_next (e);
 	}
-
 	return;
 }
 
