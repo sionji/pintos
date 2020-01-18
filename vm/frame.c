@@ -79,19 +79,24 @@ void *
 try_to_free_pages (enum palloc_flags flags)
 {
 	void *kaddr = NULL;
+	struct page *page;
+	struct vm_entry *vme;
 	if (lru_clock == NULL)
 		lru_clock = list_begin (&lru_list);
 
-	lock_acquire (&lru_list_lock);
-
-		struct page *page = list_entry (lru_clock, struct page, lru);
-		struct vm_entry *vme = page->vme;
+	do 
+	{
+		page = list_entry (lru_clock, struct page, lru);
+		vme = page->vme;
 
 		/* You must move lru_clock becasue selected page may be free. */
 		lru_clock = get_next_lru_clock ();
 		if (lru_clock == NULL)
 			return;
 
+	} while (vme->type == VM_FILE);
+
+	lock_acquire (&lru_list_lock);
 		/* Check pagedir_is_accessed. */
 		if (pagedir_is_accessed (page->thread->pagedir, page->vme->vaddr))
 			pagedir_set_accessed (page->thread->pagedir, page->vme->vaddr, false);
@@ -121,8 +126,8 @@ try_to_free_pages (enum palloc_flags flags)
 						//pagedir_set_dirty (page->thread->pagedir, vme->vaddr, false);
 						lock_release (&filesys_lock);
 					} 
-					page->vme->type = VM_ANON;
-					page->vme->swap_slot = swap_out (page->kaddr);
+					//page->vme->type = VM_ANON;
+					//page->vme->swap_slot = swap_out (page->kaddr);
 					break;
 				}
 	

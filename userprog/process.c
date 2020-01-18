@@ -199,8 +199,7 @@ process_wait (tid_t child_tid)
 	/* In the case that child process is exist. */
   sema_down (&child->sema_exit);        /* Wait for exit child process. */
 	retval = child->exit_status;          /* Save its status. */ 
-  list_remove (&child->child_elem);     /* Remove from list. */
-  palloc_free_page (child);             /* Free struct thread *child. */
+	remove_child_process (child);         /* Remove child process. */
 	
   return retval;
 }

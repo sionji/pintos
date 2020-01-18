@@ -69,8 +69,7 @@ sema_down (struct semaphore *sema)
   while (sema->value == 0) 
     {
 			/* Original code 
-      list_push_back (&sema->waiters, &thread_current ()->elem);
-			*/
+      list_push_back (&sema->waiters, &thread_current ()->elem); */
 			list_insert_ordered (&sema->waiters, &thread_current ()->elem,
 					thread_less_func, 0);
       thread_block ();
@@ -119,7 +118,8 @@ sema_up (struct semaphore *sema)
   old_level = intr_disable ();
   if (!list_empty (&sema->waiters)) 
 	{
-		list_sort (&sema->waiters, thread_less_func, 0); /* Added code */
+		/* I don't know why this code makes some error, but it is. */
+		//list_sort (&sema->waiters, thread_less_func, 0); /* Added code */
     thread_unblock (list_entry (list_pop_front (&sema->waiters),
                                 struct thread, elem));
 	}
@@ -205,6 +205,7 @@ lock_acquire (struct lock *lock)
   ASSERT (!intr_context ());
   ASSERT (!lock_held_by_current_thread (lock));
 
+	enum intr_level old_level = intr_disable ();
 	if (lock->holder != NULL)
 	{
 		t->lock_add = lock;
@@ -215,6 +216,8 @@ lock_acquire (struct lock *lock)
   sema_down (&lock->semaphore);
   lock->holder = t;
   t->lock_add = NULL;			/* Initialize lock_add. */
+
+	intr_set_level (old_level);
 }
 
 /* Tries to acquires LOCK and returns true if successful or false
@@ -263,18 +266,18 @@ void
 remove_donation_list (struct lock *lock)
 {
 	struct thread *t = thread_current ();
+	struct list_elem *e, *tmp;
 	
 	if (list_empty (&t->donation))
 		return;
 
-	struct list_elem *e = list_begin (&t->donation);
-	while (e != list_end (&t->donation))
+	for (e = list_begin (&t->donation); e != list_end (&t->donation); e = tmp)
 	{
 		struct thread *cur = list_entry (e, struct thread, donate_elem);
 		if (lock == cur->lock_add)
-			e = list_remove (e);
+			tmp = list_remove (e);
 		else
-			e = list_next (e);
+			tmp = list_next (e);
 	}
 	return;
 }
@@ -340,8 +343,7 @@ cond_wait (struct condition *cond, struct lock *lock)
   
   sema_init (&waiter.semaphore, 0);
 	/* Original code
-	list_push_back (&cond->waiters, &waiter.elem);
-	*/
+	list_push_back (&cond->waiters, &waiter.elem); 	*/
 	list_insert_ordered (&cond->waiters, &waiter.elem, cond_less_func, 0);
   lock_release (lock);
   sema_down (&waiter.semaphore);

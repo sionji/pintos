@@ -467,6 +467,7 @@ do_munmap (struct mmap_file *mmap_file)
 		/* Remove vme from hash table page entry. */
 		delete_vme (&thread_current ()->vm, vme);
 	}
+	/* Don't free vme because file_close () will free it's file. */
 }
 
 void 
