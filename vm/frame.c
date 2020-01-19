@@ -5,6 +5,7 @@
 struct list_elem *lru_clock;
 void* try_to_free_pages (enum palloc_flags flags);
 void __free_page (struct page *page);
+static struct list_elem *get_next_lru_clock (void);
 
 struct page *
 alloc_page (enum palloc_flags flags)
@@ -91,7 +92,7 @@ try_to_free_pages (enum palloc_flags flags)
 		/* You must move lru_clock becasue selected page may be free. */
 		lru_clock = get_next_lru_clock ();
 		if (lru_clock == NULL)
-			return;
+			return NULL;
 
 	} while (vme->type == VM_FILE);
 

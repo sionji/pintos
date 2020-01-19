@@ -13,6 +13,7 @@
 #include "filesys/directory.h"
 #include "filesys/file.h"
 #include "lib/kernel/hash.h"
+#include <string.h>
 	
 static unsigned vm_hash_func (const struct hash_elem *e, void *aux UNUSED);
 static bool vm_less_func (const struct hash_elem *a, 

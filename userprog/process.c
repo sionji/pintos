@@ -71,7 +71,7 @@ start_process (void *file_name_)
 	char *parse[LOADER_ARGS_LEN / 2 + 1];
 	int argc = 0;
 
-	int i = 0; /* Debugging code */
+	//int i = 0; /* Debugging code */
 	
 	/* Added codes from argument parsing. Parse a name of file. */
 	for (token = strtok_r (file_name, " ", &save_ptr);
