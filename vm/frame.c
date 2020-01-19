@@ -60,7 +60,6 @@ add_page_to_lru_list (struct page *page)
 void 
 del_page_to_lru_list (struct page *page)
 {
-	//list_pop_back (&lru_list);
 	list_remove (&page->lru);
 }
 
@@ -173,14 +172,11 @@ free_page (void *kaddr)
 			 e = tmp)
 	{
 		struct page *page = list_entry (e, struct page, lru);
-		tmp = list_next (e);
 		/* Selected list_elem will be removed from lru_list.
-		   So just use break or change list_elem before free. */
+		   So just change list_elem before free. */
+		tmp = list_next (e);
 		if (page->kaddr == kaddr)
-		{
 			__free_page (page);
-			break;
-		}
 	}
 	lock_release (&lru_list_lock);
 }
