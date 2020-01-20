@@ -45,7 +45,7 @@ swap_in (size_t used_index, void *kaddr)
 
 	for (i = 0; i < SECTORS_PER_PAGE; i++)
 		block_read (block, used_index * SECTORS_PER_PAGE + i, 
-				        (void *) kaddr + BLOCK_SECTOR_SIZE * i);
+				        (char *) kaddr + BLOCK_SECTOR_SIZE * i);
 	lock_release (&swap_lock);
 }
 
@@ -64,7 +64,7 @@ swap_out (void *kaddr)
 
 	for (i = 0; i < SECTORS_PER_PAGE; i++)
 		block_write (block, slot_num * SECTORS_PER_PAGE + i, 
-				         (void *) kaddr + BLOCK_SECTOR_SIZE * i);
+				         (char *) kaddr + BLOCK_SECTOR_SIZE * i);
 	lock_release (&swap_lock);
 
 	return slot_num;

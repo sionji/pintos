@@ -5,6 +5,7 @@
 struct list_elem *lru_clock;
 void* try_to_free_pages (enum palloc_flags flags);
 void __free_page (struct page *page);
+static struct list_elem *get_next_lru_clock (void);
 
 struct page *
 alloc_page (enum palloc_flags flags)
@@ -60,7 +61,6 @@ add_page_to_lru_list (struct page *page)
 void 
 del_page_to_lru_list (struct page *page)
 {
-	//list_pop_back (&lru_list);
 	list_remove (&page->lru);
 }
 
@@ -79,43 +79,35 @@ void *
 try_to_free_pages (enum palloc_flags flags)
 {
 	void *kaddr = NULL;
+	struct page *page;
+	struct vm_entry *vme;
 	if (lru_clock == NULL)
 		lru_clock = list_begin (&lru_list);
 
-	lock_acquire (&lru_list_lock);
-
-	while (kaddr == NULL)
+	do 
 	{
-		/* Find victim page. */
-		if (lru_clock == NULL)
-		{
-			lock_release (&lru_list_lock);
-			return;
-		}
-		struct page *page = list_entry (lru_clock, struct page, lru);
-		struct vm_entry *vme = page->vme;
+		page = list_entry (lru_clock, struct page, lru);
+		vme = page->vme;
 
 		/* You must move lru_clock becasue selected page may be free. */
 		lru_clock = get_next_lru_clock ();
+		if (lru_clock == NULL)
+			return NULL;
 
+	} while (vme->type == VM_FILE);
+
+	lock_acquire (&lru_list_lock);
 		/* Check pagedir_is_accessed. */
 		if (pagedir_is_accessed (page->thread->pagedir, page->vme->vaddr))
-		{
 			pagedir_set_accessed (page->thread->pagedir, page->vme->vaddr, false);
-			continue;
-		}
 
 		/* Victim eviction. */
 		switch (page->vme->type)
 		{
 			case VM_BIN :
 				{
-					if (pagedir_is_dirty (page->thread->pagedir, page->vme->vaddr))
-					{
-						/* Write at swap partition and free page. */
-						page->vme->swap_slot = swap_out (page->kaddr);
-						page->vme->type = VM_ANON;
-					}
+					page->vme->type = VM_ANON;
+					page->vme->swap_slot = swap_out (page->kaddr);
 					break;
 				}
 
@@ -134,8 +126,8 @@ try_to_free_pages (enum palloc_flags flags)
 						//pagedir_set_dirty (page->thread->pagedir, vme->vaddr, false);
 						lock_release (&filesys_lock);
 					} 
-					//page->vme->swap_slot = swap_out (page->kaddr);
 					//page->vme->type = VM_ANON;
+					//page->vme->swap_slot = swap_out (page->kaddr);
 					break;
 				}
 	
@@ -152,7 +144,6 @@ try_to_free_pages (enum palloc_flags flags)
 
 		/* Memory allocation and return it's pointer.*/
 		kaddr = palloc_get_page (flags);
-	}
 
 	lock_release (&lru_list_lock);
 	return kaddr;
@@ -176,20 +167,17 @@ __free_page (struct page *page)
 void 
 free_page (void *kaddr)
 {
-	struct list_elem *e;
-
+	struct list_elem *e, *tmp;
 	lock_acquire (&lru_list_lock);
 	for (e = list_begin (&lru_list); e != list_end (&lru_list);
-			 e = list_next (e))
+			 e = tmp)
 	{
 		struct page *page = list_entry (e, struct page, lru);
 		/* Selected list_elem will be removed from lru_list.
-		   So just use break or change list_elem before free. */
+		   So just change list_elem before free. */
+		tmp = list_next (e);
 		if (page->kaddr == kaddr)
-		{
 			__free_page (page);
-			break;
-		}
 	}
 	lock_release (&lru_list_lock);
 }

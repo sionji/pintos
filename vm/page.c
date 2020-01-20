@@ -13,6 +13,7 @@
 #include "filesys/directory.h"
 #include "filesys/file.h"
 #include "lib/kernel/hash.h"
+#include <string.h>
 	
 static unsigned vm_hash_func (const struct hash_elem *e, void *aux UNUSED);
 static bool vm_less_func (const struct hash_elem *a, 
@@ -128,12 +129,12 @@ load_file (void *kaddr, struct vm_entry *vme)
 		off_t actual_read = file_read_at (vme->file, kaddr, vme->read_bytes, vme->offset);
 		if (actual_read != vme->read_bytes)
 		{
-			delete_vme (&thread_current()->vm, vme);  /* Annotation or not? */
+			//delete_vme (&thread_current()->vm, vme);  /* Annotation or not? */
 			return false;
 		}
 	}
 
-	memset (kaddr + vme->read_bytes, 0, vme->zero_bytes);
+	memset ((char *)kaddr + vme->read_bytes, 0, vme->zero_bytes);
 	//printf ("load_file Result : true\n");
 	return true;
 }

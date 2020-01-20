@@ -32,6 +32,8 @@
 #include "threads/interrupt.h"
 #include "threads/thread.h"
 
+void remove_donation_list (struct lock *lock);
+
 /* Initializes semaphore SEMA to VALUE.  A semaphore is a
    nonnegative integer along with two atomic operators for
    manipulating it:
@@ -69,8 +71,7 @@ sema_down (struct semaphore *sema)
   while (sema->value == 0) 
     {
 			/* Original code 
-      list_push_back (&sema->waiters, &thread_current ()->elem);
-			*/
+      list_push_back (&sema->waiters, &thread_current ()->elem); */
 			list_insert_ordered (&sema->waiters, &thread_current ()->elem,
 					thread_less_func, 0);
       thread_block ();
@@ -119,7 +120,8 @@ sema_up (struct semaphore *sema)
   old_level = intr_disable ();
   if (!list_empty (&sema->waiters)) 
 	{
-		list_sort (&sema->waiters, thread_less_func, 0); /* Added code */
+		/* I don't know why this code makes some error, but it is. */
+		//list_sort (&sema->waiters, thread_less_func, 0); /* Added code */
     thread_unblock (list_entry (list_pop_front (&sema->waiters),
                                 struct thread, elem));
 	}
@@ -213,8 +215,8 @@ lock_acquire (struct lock *lock)
 		thread_priority_donation (t);
 	}
   sema_down (&lock->semaphore);
-  lock->holder = t;
   t->lock_add = NULL;			/* Initialize lock_add. */
+	lock->holder = t;
 }
 
 /* Tries to acquires LOCK and returns true if successful or false
@@ -262,20 +264,20 @@ lock_release (struct lock *lock)
 void
 remove_donation_list (struct lock *lock)
 {
-	struct list_elem *e;
 	struct thread *t = thread_current ();
+	struct list_elem *e;
+	struct list_elem *tmp;
 	
 	if (list_empty (&t->donation))
 		return;
 
-	for (e = list_begin (&t->donation); e != list_end (&t->donation);
-			 e = list_next (e))
+	for (e = list_begin (&t->donation); e != list_end (&t->donation); e = tmp)
 	{
-		struct thread *f = list_entry (e, struct thread, donate_elem);
-		if (lock == f->lock_add)
-      list_remove (&f->donate_elem);
+		struct thread *cur = list_entry (e, struct thread, donate_elem);
+		tmp = list_next (e);
+		if (lock == cur->lock_add)
+			list_remove (e);
 	}
-
 	return;
 }
 
@@ -340,8 +342,7 @@ cond_wait (struct condition *cond, struct lock *lock)
   
   sema_init (&waiter.semaphore, 0);
 	/* Original code
-	list_push_back (&cond->waiters, &waiter.elem);
-	*/
+	list_push_back (&cond->waiters, &waiter.elem); 	*/
 	list_insert_ordered (&cond->waiters, &waiter.elem, cond_less_func, 0);
   lock_release (lock);
   sema_down (&waiter.semaphore);

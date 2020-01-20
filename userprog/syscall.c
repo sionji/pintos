@@ -444,9 +444,8 @@ syscall_mmap (int fd, void *addr)
 void
 do_munmap (struct mmap_file *mmap_file)
 {
-	struct list_elem *e;
-	for (e = list_begin (&mmap_file->vme_list); e != list_end (&mmap_file->vme_list);
-			 e = list_next (e))
+	struct list_elem *e = list_begin (&mmap_file->vme_list);
+	while (!list_empty (&mmap_file->vme_list))
 	{
 		struct vm_entry *vme = list_entry (e, struct vm_entry, mmap_elem);
 		if (vme->is_loaded)
@@ -464,19 +463,19 @@ do_munmap (struct mmap_file *mmap_file)
 		}
 
 		/* Remove vme from vme_list. */
-		list_remove (&vme->mmap_elem);
+		e = list_remove (&vme->mmap_elem);
 		/* Remove vme from hash table page entry. */
 		delete_vme (&thread_current ()->vm, vme);
 	}
+	/* Don't free vme because file_close () will free it's file. */
 }
 
 void 
 syscall_munmap (mapid_t mapid)
 {
 	struct thread *cur = thread_current ();
-	struct list_elem *e, *tmp;
-	for (e = list_begin (&cur->mmap_list); e != list_end (&cur->mmap_list);
-			 e = list_next (e))
+	struct list_elem *e = list_begin (&cur->mmap_list);
+	while (e != list_end (&cur->mmap_list))
 	{
 		struct mmap_file *mmap_file = list_entry (e, struct mmap_file, elem);
 		if (mapid == mmap_file->mapid || mapid == CLOSE_ALL)
@@ -489,12 +488,12 @@ syscall_munmap (mapid_t mapid)
 			file_close (mmap_file->file);
 
 			/* Remove mmap_file from list. */
-			tmp = list_prev (e);
-			list_remove (e);
-			e = tmp;
+			e = list_remove (e);
 
 			/* Remove mmap_file. */
 			free (mmap_file);
 		}
+		else
+			e = list_next (e);
 	}
 }

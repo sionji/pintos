@@ -71,7 +71,7 @@ start_process (void *file_name_)
 	char *parse[LOADER_ARGS_LEN / 2 + 1];
 	int argc = 0;
 
-	int i = 0; /* Debugging code */
+	//int i = 0; /* Debugging code */
 	
 	/* Added codes from argument parsing. Parse a name of file. */
 	for (token = strtok_r (file_name, " ", &save_ptr);
@@ -199,8 +199,7 @@ process_wait (tid_t child_tid)
 	/* In the case that child process is exist. */
   sema_down (&child->sema_exit);        /* Wait for exit child process. */
 	retval = child->exit_status;          /* Save its status. */ 
-  list_remove (&child->child_elem);     /* Remove from list. */
-  palloc_free_page (child);             /* Free struct thread *child. */
+	remove_child_process (child);         /* Remove child process. */
 	
   return retval;
 }
