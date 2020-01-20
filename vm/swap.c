@@ -1,17 +1,21 @@
 #include "vm/swap.h"
 #include "threads/synch.h"
 
-/* 4KB BITMAP SIZE. */
-/* If BITMAP SIZE is too large, then execution time is too long.
-	 IF BITMAP SIZE is too small, then errors will be occured. 
-   It is important that finding a suitable bitmap size. */
-#define BITMAPBITS 12 
-#define BITMAPSIZE (1 << BITMAPBITS)
-
 /* Number of sectors per page. */
 /* Sector size is 512(=2^9, which is defined as BLOCK_SECTOR_SIZE),
    so we need as many sectors as (PGSIZE / BLOCK_SECTOR_SIZE) per page. */
 #define SECTORS_PER_PAGE (PGSIZE / BLOCK_SECTOR_SIZE)
+
+/* 4KB BITMAP SIZE. */
+/* If BITMAP SIZE is too large, then execution time is too long.
+	 IF BITMAP SIZE is too small, then errors will be occured. 
+   It is important that finding a suitable bitmap size. */
+/* To make suitable BITMAPSIZE, look at the following suggestions.
+	 1) PintOS uses 4MB swap size and PGSIZE is 4KB. 
+	 2) PintOS is operated as block. Each page has SECTORS_PER_PAGE sectors.
+   So, (4MB / 4KB * SECTORS_PER_PAGE) = 2^13 BITMAPSIZE is maybe suitable. */
+#define BITMAPBITS 13
+#define BITMAPSIZE (1 << BITMAPBITS)
 
 struct block *block;
 struct bitmap *bitmap;
