@@ -745,3 +745,33 @@ handle_mm_fault (struct vm_entry *vme)
 	vme->is_loaded = true;
 	return success;
 }
+
+bool
+expand_stack (void *addr)
+{
+	/* Allocate page. */
+	struct page *page = alloc_page (PAL_USER);
+	/* Demand paging. */
+	struct vm_entry *vme = (struct vm_entry *) malloc (sizeof (struct vm_entry));
+	if (vme == NULL)
+		return false;
+	/* Initialize. */
+	page->vme = vme;
+	vme->type = VM_ANON;
+	vme->vaddr = addr;
+	vme->writable = true;
+	vme->is_loaded = true;
+	/* Insert vm_entry to hash table. */
+	insert_vme (&thread_current ()->vm, vme);
+	/* Install page. */
+	bool success = install_page (vme->vaddr, page->kaddr, true);
+	if (!success)
+	{
+		delete_vme (&thread_current ()->vm, vme);
+		free_page (page);
+		free (vme);
+		return false;
+	}
+	return true;
+}
+

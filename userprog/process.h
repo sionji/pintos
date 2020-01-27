@@ -13,6 +13,7 @@ void remove_child_process (struct thread *);
 int process_add_file (struct file *);
 struct file *process_get_file (int);
 void process_close_file (int);
-bool handle_mm_fault (struct vm_entry *vme);
+bool handle_mm_fault (struct vm_entry *);
+bool expand_stack (void *);
 
 #endif /* userprog/process.h */

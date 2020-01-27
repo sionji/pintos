@@ -13,9 +13,7 @@ alloc_page (enum palloc_flags flags)
 	/* If palloc_get_page is failed, try to free pages. */
 	void *kaddr = palloc_get_page (flags);
 	if (kaddr == NULL)
-	{
 		kaddr = try_to_free_pages (flags);
-	}
 	
 	/* Page & Memory allocation. */
 	struct page *page = (struct page *)malloc (sizeof (struct page));
