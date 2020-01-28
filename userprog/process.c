@@ -751,6 +751,7 @@ expand_stack (void *addr)
 {
 	/* Allocate page. */
 	struct page *page = alloc_page (PAL_USER);
+	void *uaddr = pg_round_down (addr);
 	/* Demand paging. */
 	struct vm_entry *vme = (struct vm_entry *) malloc (sizeof (struct vm_entry));
 	if (vme == NULL)
@@ -758,7 +759,7 @@ expand_stack (void *addr)
 	/* Initialize. */
 	page->vme = vme;
 	vme->type = VM_ANON;
-	vme->vaddr = addr;
+	vme->vaddr = uaddr;
 	vme->writable = true;
 	vme->is_loaded = true;
 	/* Insert vm_entry to hash table. */

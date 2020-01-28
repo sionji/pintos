@@ -14,7 +14,7 @@ static long long page_fault_cnt;
 static void kill (struct intr_frame *);
 static void page_fault (struct intr_frame *);
 
-bool verify_stack (void *sp, struct intr_frame *f);
+bool verify_stack (void *addr, void* esp);
 
 /* Registers handlers for interrupts that can be caused by user
    programs.
@@ -175,7 +175,7 @@ page_fault (struct intr_frame *f)
 		/* Extensible stack. */
 		else 
 		{
-  		if (verify_stack (fault_addr, f))
+  		if (verify_stack (fault_addr, f->esp))
 	  		expand_stack (fault_addr);
   		else
 	  	{
@@ -203,7 +203,7 @@ page_fault (struct intr_frame *f)
 }
 
 bool
-verify_stack (void *sp, struct intr_frame *f)
+verify_stack (void *sp, void *esp)
 {
 	bool valid = (sp > 0xC0000000 - STACK_HEURISTIC)? true: false;
 	/* Move esp. 
