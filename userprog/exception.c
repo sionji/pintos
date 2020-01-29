@@ -14,6 +14,8 @@ static long long page_fault_cnt;
 static void kill (struct intr_frame *);
 static void page_fault (struct intr_frame *);
 
+bool verify_stack (void *addr, void* esp);
+
 /* Registers handlers for interrupts that can be caused by user
    programs.
 
@@ -151,22 +153,35 @@ page_fault (struct intr_frame *f)
   write = (f->error_code & PF_W) != 0;
   user = (f->error_code & PF_U) != 0;
 
-	/* Added codes for Demand paging. */
-	bool success = false;
+	/* Check address is valid. */
 	check_address (fault_addr, f->esp);
 
+	/* Added codes for Demand paging. */
 	/* Use syscall_exit when if page fault is happened by kernel or 
 	   its address indicates kernel address. */
 	if (not_present)
 	{
 		struct vm_entry *vme = find_vme (fault_addr);
-		if (vme != NULL)
-			success = handle_mm_fault (vme);
-
-		if (!success)
+		/* handle_mm_fault. */
+		if (vme)
 		{
-			syscall_exit (-1);
-			kill (f);
+			if (!handle_mm_fault (vme))
+			{
+				syscall_exit (-1);
+				kill (f);
+			}
+		}
+
+		/* Extensible stack. */
+		else 
+		{
+  		if (verify_stack (fault_addr, f->esp))
+	  		expand_stack (fault_addr);
+  		else
+	  	{
+		  	syscall_exit (-1);
+				kill (f);
+		  }
 		}
 	}
 	else if (!user || !not_present)
@@ -187,3 +202,13 @@ page_fault (struct intr_frame *f)
 	*/
 }
 
+bool
+verify_stack (void *sp, void *esp)
+{
+	bool valid = (sp > 0xC0000000 - STACK_HEURISTIC)? true: false;
+	/* Move esp. 
+	if (valid)
+		f->esp = sp;
+		*/
+	return valid;
+}

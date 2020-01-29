@@ -120,8 +120,7 @@ sema_up (struct semaphore *sema)
   old_level = intr_disable ();
   if (!list_empty (&sema->waiters)) 
 	{
-		/* I don't know why this code makes some error, but it is. */
-		//list_sort (&sema->waiters, thread_less_func, 0); /* Added code */
+		list_sort (&sema->waiters, thread_less_func, 0); /* Added code */
     thread_unblock (list_entry (list_pop_front (&sema->waiters),
                                 struct thread, elem));
 	}
