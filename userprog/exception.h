@@ -6,9 +6,14 @@
 #define PF_W 0x2    /* 0: read, 1: write. */
 #define PF_U 0x4    /* 0: kernel, 1: user process. */
 
-#define STACK_HEURISTIC 8*1024*1024
+#define STACK_HEURISTIC 32
+#define MAX_HEURISTIC (1 << 23)
+
+#include <stdbool.h>
 
 void exception_init (void);
 void exception_print_stats (void);
+
+bool verify_stack (void *, void *);
 
 #endif /* userprog/exception.h */

@@ -14,6 +14,6 @@ int process_add_file (struct file *);
 struct file *process_get_file (int);
 void process_close_file (int);
 bool handle_mm_fault (struct vm_entry *);
-bool expand_stack (void *);
+bool expand_stack (void *, void *);
 
 #endif /* userprog/process.h */

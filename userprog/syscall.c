@@ -1,6 +1,7 @@
 #include "userprog/syscall.h"
 #include "userprog/process.h"
 #include "userprog/pagedir.h"
+#include "userprog/exception.h"
 #include "threads/malloc.h"
 #include "threads/palloc.h"
 #include "filesys/filesys.h"
@@ -294,15 +295,17 @@ syscall_get_args (void *esp, int *args, int count)
 }
 
 struct vm_entry *
-check_address (void *addr, void *esp UNUSED)
+check_address (void *addr, void *esp)
 {
 	if (addr < (void *)0x0804800 || addr >= (void *)0xc0000000)
 		syscall_exit (-1);
 
 	struct vm_entry *vme = find_vme (addr);
 	if (vme == NULL)
-		return;
-	else
+  {
+    return;
+  }
+ 	else
 		return vme;
 }
 
