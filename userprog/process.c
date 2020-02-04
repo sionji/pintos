@@ -750,7 +750,7 @@ bool
 expand_stack (void *addr, void *esp)
 {
   void *uaddr = pg_round_down (addr);
-  while (uaddr < esp)
+  while (!find_vme (uaddr))
   {
 	/* Allocate page. */
 	struct page *page = alloc_page (PAL_USER);
