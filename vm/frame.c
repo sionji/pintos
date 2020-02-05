@@ -3,7 +3,7 @@
 #include "threads/thread.h"
 
 struct list_elem *lru_clock;
-void* try_to_free_pages (enum palloc_flags flags);
+void *try_to_free_pages (enum palloc_flags flags);
 void __free_page (struct page *page);
 static struct list_elem *get_next_lru_clock (void);
 

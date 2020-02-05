@@ -10,8 +10,9 @@ struct buffer_head
 {
   struct inode *inode;      /* inode pointer. */
   bool dirty;               /* Flag shows dirty. */
+  bool clock_bit;           /* True : accessed recently. False : not. */
+  bool valid;               /* True : this entry is valid. False : not.*/
   block_sector_t sector;    /* Address of disk sector of it's entry. */
-  list_elem clock;          /* Used for clock algorithm. */
   struct lock head_lock;    /* Lock. */
   void *data;               /* Buffer cache entry data pointer. */
 }
