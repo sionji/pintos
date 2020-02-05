@@ -1,11 +1,12 @@
 #include "filesys/buffer_cache.h"
+#include "threads/malloc.h"
 #include <string.h>
 
 /* Number of cache entry (32KByte). */
 #define BUFFER_CACHE_ENTRY_NB 64 
 
 /* Indicates buffer cache memory space. */
-struct buffer_head *p_buffer_cache;
+uint8_t *p_buffer_cache;
 /* Array of buffer head. */
 struct buffer_head buffer_head [BUFFER_CACHE_ENTRY_NB];
 /* Victim entry chooser at clock algorithm. */
@@ -26,11 +27,11 @@ bc_init (void)
     buffer_head [i].data = p_buffer_cache [i];
     buffer_head [i].sector = 0;
     buffer_head [i].valid = false;
-    lock_init (&head_lock);
+    lock_init (&buffer_head [i].head_lock);
   }
   clock_hand = 0;
 
-  struct block *fs_device = block_get_role (BLOCK_FILESYS);
+  fs_device = block_get_role (BLOCK_FILESYS);
 }
 
 /* Flush cached data to Disk block. */
@@ -49,18 +50,18 @@ bc_read (block_sector_t sector_idx, void *buffer,
          off_t bytes_read, int chunk_size, int sector_ofs)
 {
   /* Search sector_idx in buffer_head. */
-  p_buffer_cache = bc_lookup (sector_idx);
+  struct buffer_head *buf_head = bc_lookup (sector_idx);
   /* If it isn't exist, find victim. */
-  if (p_buffer_cache == NULL)
-    p_buffer_cache = bc_select_victim ();
+  if (buf_head == NULL)
+    buf_head = bc_select_victim ();
 
   /* Read disk block data to buffer cache. */
-  block_read ();
+  block_read (fs_device, sector_idx, buffer + bytes_read);
   /* Using memcpy to copy disk block data to buffer. */
-  memcpy (buffer + bytes_read, bounce + sector_ofs, chunk_size);
+  memcpy (buffer + bytes_read, buf_head->data + sector_ofs, chunk_size);
 
   /* clock_bit setting. */
-  p_buffer_cache->clock_bit = true;
+  buf_head->clock_bit = true;
 
   return true;
 }
@@ -72,16 +73,17 @@ bc_write (block_sector_t sector_idx, void *buffer,
   bool success = false;
 
   /* Search sector_ids in buffer_head and copy to buffer cache. */
-  p_buffer_cache = bc_lookup (sector_idx);
-  if (p_buffer_cache == NULL)
-    p_buffer_cache = bc_select_victim ();
+  struct buffer_head *buf_head = bc_lookup (sector_idx);
+  if (buf_head == NULL)
+    buf_head = bc_select_victim ();
   
-  uint8_t *bounce = malloc (BLOCK_SECTOR_SIZE);
-  block_write (, sector_idx, buffer + bytes_written);
+  block_write (fs_device, sector_idx, buffer + bytes_written);
+
   /* Update buffer head. */
-  p_buffer_cache->clock_bit = true;
-  p_buffer_cache->dirty_bit = true;
-  p_buffer_cache->data = bounce;
+  buf_head->clock_bit = true;
+  buf_head->dirty = true;
+  buf_head->valid = true;
+  buf_head->sector = sector_idx;
 
   return success;
 }
@@ -103,7 +105,7 @@ bc_select_victim (void)
   }
   /* If selected victim entry is dirty, flush.*/
   if (buffer_head [clock_hand].dirty == true)
-    bc_flush_entry (buffer_head [clock_hand]);
+    bc_flush_entry (&buffer_head [clock_hand]);
   /* Update buffer_head of victim entry. */
   buffer_head [clock_hand].dirty = false;
   buffer_head [clock_hand].clock_bit = false;
@@ -123,7 +125,7 @@ bc_lookup (block_sector_t sector)
   /* Traverse buffer_head, find buffer cache entry which has 
      same block_sector_t number. */
   int i = 0;
-  success = false;
+  bool success = false;
   for (i = 0; i < BUFFER_CACHE_ENTRY_NB; i++)
   {
     if (buffer_head [i].sector == sector && buffer_head [i].valid == true)
@@ -133,7 +135,7 @@ bc_lookup (block_sector_t sector)
     }
   }
   if (success)
-    return buffer_head [i].data;
+    return &buffer_head [i];
   else
     return NULL;
 }
@@ -145,7 +147,7 @@ bc_flush_entry (struct buffer_head *buffer_head)
   /* Call block_write, flush buffer cache entry data to disk. */
   block_write (fs_device, buffer_head->sector, buffer_head->data);
   /* Update buffer_head's dirty bit. */
-  p_flush_entry->dirty = false;
+  buffer_head->dirty = false;
 }
 
 /* Traverse buffer_head and flush dirty entry data to disk. */
@@ -158,7 +160,7 @@ bc_flush_all_entries (void)
   for (i = 0; i < BUFFER_CACHE_ENTRY_NB; i ++)
   {
     if (buffer_head [i].dirty == true)
-      bc_flush_entry (buffer_head [i]);      /* Flush. */
+      bc_flush_entry (&buffer_head [i]);      /* Flush. */
     /* After flush, update dirty bit of buffer cache. */
     buffer_head [i].dirty = false;
   }

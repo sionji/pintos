@@ -2,9 +2,12 @@
 #define BUFFER_CACHE_H
 
 #include <stdbool.h>
-#include <filesys/inode.h>
-#include <filesys/block.h>
-#include <filesys/off_t.h>
+#include "filesys/inode.h"
+#include "filesys/off_t.h"
+#include "devices/block.h"
+#include "threads/synch.h"
+
+struct block *fs_device;
 
 struct buffer_head 
 {
@@ -15,7 +18,7 @@ struct buffer_head
   block_sector_t sector;    /* Address of disk sector of it's entry. */
   struct lock head_lock;    /* Lock. */
   void *data;               /* Buffer cache entry data pointer. */
-}
+};
 
 void bc_init (void);        /* Initiate buffer cache. */
 void bc_term (void);        /* Terminate buffer cache. */
