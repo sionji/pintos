@@ -35,6 +35,8 @@ filesys_init (bool format)
 void
 filesys_done (void) 
 {
+  /* Added code for buffer cache. */
+  bc_term ();
   free_map_close ();
 }
 
