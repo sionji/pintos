@@ -1,12 +1,13 @@
 #include "filesys/buffer_cache.h"
 #include "threads/malloc.h"
 #include <string.h>
+#include <stdio.h>
 
 /* Number of cache entry (32KByte). */
 #define BUFFER_CACHE_ENTRY_NB 64 
 
 /* Indicates buffer cache memory space. */
-uint8_t *p_buffer_cache;
+void *p_buffer_cache;
 /* Array of buffer head. */
 struct buffer_head buffer_head [BUFFER_CACHE_ENTRY_NB];
 /* Victim entry chooser at clock algorithm. */
@@ -18,18 +19,19 @@ void
 bc_init (void)
 {
   /* Allocate buffer cache in memory. */
-  p_buffer_cache = malloc (sizeof (BLOCK_SECTOR_SIZE) * BUFFER_CACHE_ENTRY_NB);
+  p_buffer_cache = malloc (BLOCK_SECTOR_SIZE * BUFFER_CACHE_ENTRY_NB);
   /* p_buffer_cache points buffer cache. */
   /* Initiate global variable buffer_head. */
-  int i = 0;
+  unsigned int i = 0;
   for (i = 0; i < BUFFER_CACHE_ENTRY_NB; i++)
   {
     buffer_head [i].dirty = false;
     buffer_head [i].clock_bit = false;
-    buffer_head [i].data = p_buffer_cache [i];
+    buffer_head [i].data = p_buffer_cache + BLOCK_SECTOR_SIZE * i;
     buffer_head [i].sector = 0;
     buffer_head [i].valid = false;
     lock_init (&buffer_head [i].head_lock);
+    //printf ("buffer_head [%d].data = %p\n", i, &buffer_head [i].data);
   }
   clock_hand = 0;
 
@@ -115,6 +117,16 @@ bc_select_victim (void)
 {
   /* Choose victim using clock algorithm. */
   /* Traverse buffer_head and check clock_bit. */
+
+  /* If empty cache is exist, then return. */
+  unsigned int i = 0;
+  for (i = 0; i < BUFFER_CACHE_ENTRY_NB; i++)
+  {
+    if (buffer_head [i].valid == false)
+      return &buffer_head [i];
+  }
+
+  /* If buffer cache is full, find victim. */
   while (buffer_head [clock_hand].clock_bit == true)
   {
     buffer_head [clock_hand].clock_bit = false;
@@ -123,7 +135,6 @@ bc_select_victim (void)
       clock_hand = 0;
   }
 
-  lock_acquire (&buffer_head [clock_hand].head_lock);
   /* If selected victim entry is dirty, flush.*/
   if (buffer_head [clock_hand].dirty == true &&
       buffer_head [clock_hand].valid == true)
@@ -133,7 +144,6 @@ bc_select_victim (void)
   buffer_head [clock_hand].clock_bit = false;
   buffer_head [clock_hand].sector = 0;
   buffer_head [clock_hand].valid = false;
-  lock_release (&buffer_head [clock_hand].head_lock);
 
   /* Return victim entry. */
   return &buffer_head [clock_hand];
@@ -147,7 +157,7 @@ bc_lookup (block_sector_t sector)
 {
   /* Traverse buffer_head, find buffer cache entry which has 
      same block_sector_t number. */
-  int i = 0;
+  unsigned int i = 0;
   bool success = false;
   for (i = 0; i < BUFFER_CACHE_ENTRY_NB; i++)
   {
@@ -180,13 +190,11 @@ bc_flush_all_entries (void)
 {
   /* Traverse buffer_head, flush entry to disk if it is dirty,
      using block_write (). */
-  int i = 0;
+  unsigned int i = 0;
   for (i = 0; i < BUFFER_CACHE_ENTRY_NB; i ++)
   {
     if (buffer_head [i].valid == true &&
         buffer_head [i].dirty == true)
       bc_flush_entry (&buffer_head [i]);      /* Flush. */
-    /* After flush, update dirty bit of buffer cache. */
-    buffer_head [i].dirty = false;
   }
 }

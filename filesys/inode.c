@@ -6,6 +6,7 @@
 #include "filesys/filesys.h"
 #include "filesys/free-map.h"
 #include "threads/malloc.h"
+#include "filesys/buffer_cache.h"
 
 /* Identifies an inode. */
 #define INODE_MAGIC 0x494e4f44
@@ -223,9 +224,9 @@ inode_read_at (struct inode *inode, void *buffer_, off_t size, off_t offset)
       if (sector_ofs == 0 && chunk_size == BLOCK_SECTOR_SIZE)
         {
           /* Read full sector directly into caller's buffer. */
-          //block_read (fs_device, sector_idx, buffer + bytes_read);
+          block_read (fs_device, sector_idx, buffer + bytes_read);
           /* Modified code for buffer cache. */
-          bc_read (sector_idx, buffer, bytes_read, chunk_size, sector_ofs);
+          //bc_read (sector_idx, buffer, bytes_read, chunk_size, sector_ofs);
         }
       else 
         {
@@ -286,9 +287,9 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
       if (sector_ofs == 0 && chunk_size == BLOCK_SECTOR_SIZE)
         {
           /* Write full sector directly to disk. */
-          //block_write (fs_device, sector_idx, buffer + bytes_written);
+          block_write (fs_device, sector_idx, buffer + bytes_written);
           /* Modified code for buffer cache. */
-          bc_write (sector_idx, buffer, bytes_written, chunk_size, sector_ofs);
+          //bc_write (sector_idx, buffer, bytes_written, chunk_size, sector_ofs);
         }
       else 
         {

@@ -128,12 +128,12 @@ main (void)
   ide_init ();
   locate_block_devices ();
   filesys_init (format_filesys);
-  bc_init ();
 #endif
 
 	/* Added codes for VM. */
 	lru_list_init ();
 	swap_init ();
+  bc_init ();
 
   printf ("Boot complete.\n");
   
