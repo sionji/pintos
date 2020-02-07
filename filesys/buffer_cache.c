@@ -10,7 +10,7 @@ uint8_t *p_buffer_cache;
 /* Array of buffer head. */
 struct buffer_head buffer_head [BUFFER_CACHE_ENTRY_NB];
 /* Victim entry chooser at clock algorithm. */
-int clock_hand;
+unsigned int clock_hand;
 
 struct lock general;
 
@@ -33,7 +33,6 @@ bc_init (void)
   }
   clock_hand = 0;
 
-  fs_device = block_get_role (BLOCK_FILESYS);
   lock_init (&general);
 }
 
@@ -60,6 +59,8 @@ bc_read (block_sector_t sector_idx, void *buffer,
   {
     head_ptr = bc_select_victim ();
     lock_acquire (&head_ptr->head_lock);
+    head_ptr->sector = sector_idx;
+    head_ptr->valid = true;
     block_read (fs_device, sector_idx, head_ptr->data);
   }
   else
@@ -89,6 +90,8 @@ bc_write (block_sector_t sector_idx, void *buffer,
   {
     head_ptr = bc_select_victim ();
     lock_acquire (&head_ptr->head_lock);
+    head_ptr->valid = true;
+    head_ptr->sector = sector_idx;
     block_read (fs_device, sector_idx, head_ptr->data);
   }
   else
@@ -100,8 +103,6 @@ bc_write (block_sector_t sector_idx, void *buffer,
   /* Update buffer head. */
   head_ptr->clock_bit = true;
   head_ptr->dirty = true;
-  head_ptr->valid = true;
-  head_ptr->sector = sector_idx;
   lock_release (&head_ptr->head_lock);
 
   return success;

@@ -2,12 +2,11 @@
 #define BUFFER_CACHE_H
 
 #include <stdbool.h>
+#include "filesys/filesys.h"
 #include "filesys/inode.h"
 #include "filesys/off_t.h"
 #include "devices/block.h"
 #include "threads/synch.h"
-
-struct block *fs_device;
 
 struct buffer_head 
 {
