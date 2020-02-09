@@ -747,11 +747,13 @@ handle_mm_fault (struct vm_entry *vme)
 }
 
 bool
-expand_stack (void *addr)
+expand_stack (void *addr, void *esp)
 {
+  void *uaddr = pg_round_down (addr);
+  while (!find_vme (uaddr))
+  {
 	/* Allocate page. */
 	struct page *page = alloc_page (PAL_USER);
-	void *uaddr = pg_round_down (addr);
 	/* Demand paging. */
 	struct vm_entry *vme = (struct vm_entry *) malloc (sizeof (struct vm_entry));
 	if (vme == NULL)
@@ -773,6 +775,8 @@ expand_stack (void *addr)
 		free (vme);
 		return false;
 	}
-	return true;
+  uaddr += PGSIZE;
+  }
+  return true;
 }
 
