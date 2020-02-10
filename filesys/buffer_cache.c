@@ -2,6 +2,7 @@
 #include "threads/malloc.h"
 #include <string.h>
 #include <stdio.h>
+#include <debug.h>
 
 /* Number of cache entry (32KByte). */
 #define BUFFER_CACHE_ENTRY_NB 64 

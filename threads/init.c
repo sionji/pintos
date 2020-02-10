@@ -39,7 +39,6 @@
 #endif
 #include "vm/swap.h"
 #include "vm/frame.h"
-#include "filesys/buffer_cache.h"
 
 /* Page directory with kernel mappings only. */
 uint32_t *init_page_dir;
@@ -133,7 +132,6 @@ main (void)
 	/* Added codes for VM. */
 	lru_list_init ();
 	swap_init ();
-  bc_init ();
 
   printf ("Boot complete.\n");
   
