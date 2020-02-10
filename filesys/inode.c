@@ -7,6 +7,7 @@
 #include "filesys/free-map.h"
 #include "threads/malloc.h"
 #include "filesys/buffer_cache.h"
+#include "threads/synch.h"
 
 /* Identifies an inode. */
 #define INODE_MAGIC 0x494e4f44
@@ -15,10 +16,14 @@
    Must be exactly BLOCK_SECTOR_SIZE bytes long. */
 struct inode_disk
   {
-    block_sector_t start;               /* First data sector. */
     off_t length;                       /* File size in bytes. */
     unsigned magic;                     /* Magic number. */
-    uint32_t unused[125];               /* Not used. */
+    /* Array of disk block number which access directly. */
+    block_sector_t direct_map_table [];
+    /* Number of indirect-accessing index block. */
+    block_sector_t indirect_block_sec;
+    /* If it access as double-indirect, first index block number. */
+    block_sector_t double_indirect_block_sec;
   };
 
 /* Returns the number of sectors to allocate for an inode SIZE
@@ -37,7 +42,7 @@ struct inode
     int open_cnt;                       /* Number of openers. */
     bool removed;                       /* True if deleted, false otherwise. */
     int deny_write_cnt;                 /* 0: writes ok, >0: deny writes. */
-    struct inode_disk data;             /* Inode content. */
+    struct lock extend_lock;
   };
 
 /* Returns the block device sector that contains byte offset POS
@@ -299,4 +304,283 @@ off_t
 inode_length (const struct inode *inode)
 {
   return inode->data.length;
+}
+
+/* ----------------------------------------------------------- */
+/* Added codes for extensible file. */
+
+/* Global variables. */
+unsigned int INDIRECT_BLOCK_ENTRIES = 64;
+unsigned int DIRECT_BLOCK_ENTREIS = 64;
+
+enum direct_t 
+{
+  NORMAL_DIRECT = 0;
+  INDIRECT;
+  DOUBLE_INDIRECT;
+  OUT_LIMIT;
+};
+
+struct
+sector_location 
+{
+  enum direct_t directness;
+  /* Offset of entry to access in the first index block. */
+  unsigned int index1;
+  /* Offset of entry to access in the second index block. */
+  unsigned int index2;
+};
+
+struct
+inode_indirect_block
+{
+  block_sector_t map_table [INDIRECT_BLOCK_ENTRIES];
+};
+
+/* Transfer data to inode_dist from buffer_cache. */
+static bool
+get_disk_inode (const struct inode *inode; struct inode_disk *inode_disk)
+{
+  /* Using bc_read (), read on-disk inode from buffer_cache and
+     save it to inode_disk. */
+  block_sector_t sector_idx = inode->sector;
+  bc_read (sector_idx, inode_disk->direct_map_table [sector_idx],
+     0, BLOCK_SECTOR_SIZE, 0);
+  /* Return true. */
+  return true;
+}
+
+/* Verify disk block access method (enum direct_t). */
+/* Check 1st index block offset, 2nd index block offset. */
+static void
+locate_byte (off_t pos, struct sector_location *sec_loc)
+{
+  off_t pos_sector = pos / BLOCK_SECTOR_SIZE;
+
+  /* If it's method is direct, then */
+  if (pos_sector < DIRECT_BLOCK_ENTRIES) 
+  {
+    /* Update variable of struct sector_location. */
+  }
+
+  else if (pos_sector < (off_t) (DIRECT_BLOCK_ENTRIES
+        + INDIRECT_BLOCK_ENTRIES))
+  {
+    /* Update variable of struct sector_location. */
+  }
+
+  else if (pos_sector < (off_t) (DIRECT_BLOCK_ENTRIES
+        + INDIRECT_BLOC_ENTRIES * (INDIRECT_BLOCK_ENTRIES + 1)))
+  {
+    /* Update variable of struct sector_location. */
+  }
+
+  else
+    sec_loc->directness = OUT_LIMIT;
+
+  return;
+}
+
+/* Change offset to byte. */
+static inline off_t
+map_table_offset (int index)
+{
+  /* Change offset value to byte and return. */
+  return index * sizeof (uint8_t);
+}
+
+/* Update newly assigned disk block number to inode_disk. */
+static bool
+register_sector (struct inode_disk *inode_disk,
+    block_sector_t new_sector, struct sector_location sec_loc)
+{
+  /* Do something. */
+  switch (sec_loc.directness)
+  {
+    case NORMAL_DIRECT :
+      {
+        /* Update newly assigned disk number to inode_disk. */
+        break;
+      }
+
+    case INDIRECT :
+      {
+        void *new_block = malloc (BLOCK_SECTOR_SIZE);
+        if (new_block == NULL)
+          return false;
+
+        /* Save newly assigned block number to index block. */
+        /* Write index block to buffer cache. */
+        break;
+      }
+
+    case DOUBLE_INDIRECT :
+      {
+        void *new_block = malloc (BLOCK_SECTOR_SIZE);
+        if (new_block == NULL)
+          return false;
+
+        /* Save newly assigned block address in 2nd index block, 
+           write each index block to buffer cache. */
+        break;
+      }
+      
+    default :
+      {
+        return false;
+      }
+  }
+  //free (new_block);   /* Why free new_block? */
+  return true;
+}
+
+/* Return disk block number using file offset. */
+static block_sector_t
+byte to sector (const struct inode_disk *inode_disk, off_t pos)
+{
+  block_sector_t result_sec;    /* Disk block number to return. */
+
+  if (pos < inode_disk->length)
+  {
+    struct inode_indirect_block *ind_block;
+    struct sector_location sec_loc;
+    locate_byte (pos, &sec_loc);  /* Calculate index block offset.*/
+
+    switch (sec_loc.directness)
+    {
+      case NORMAL_DIRECT : 
+        {
+          /* Get disk block number from on-disk inode direct_map_table. */
+          break;
+        }
+
+      case INDIRECT :
+        {
+          ind_block = (struct inode_indirect_block *) malloc (BLOCK_SECTOR_SIZE);
+          if (ind_block)
+          {
+            /* Read index block from buffer cache. */
+            /* Check disk block number from index block. */
+          }
+          else
+            result_sec = 0;
+
+          free (ind_block);
+          break;
+        }
+        
+      case DOUBLE_INDIRECT :
+        {
+          ind_block = (struct inode_indirect_block *) malloc (BLOCK_SECTOR_SIZE);
+          if (ind_block)
+          {
+            /* Read 1st index block from buffer cache. */
+            /* Read 1st index block from buffer cache. */
+            /* Check disk block number from 2nd index block.*/
+          }
+        }
+
+      default :
+        result_sec = 0;
+    }
+    /**/
+  }
+
+  /**/
+  return result_sec;
+}
+
+/* If file offset is larger than it's original file size, 
+   then allocate new disk block and update inode. */
+/* start_pos : Start offset of file area to increase. 
+   end_pos : Last offset of file area to increase. */
+bool 
+inode_update_file_length (struct inode_disk *inode_disk, 
+    off_t start_pos, off_t end_pos)
+{
+  /* Do something. */
+
+  while (size > 0) 
+  {
+    /* Calc offset within disk block. */
+    if (sector_ofs > 0)
+    {
+      /* If block_offset is larger than 0, it is already assigned block. */
+    }
+    else
+    {
+      /* Assign new disk block. */
+      if (free_map_allocate (1, &sector_idx))
+      {
+        /* Update newly assigned disk block number to inode_disk. */
+      }
+      else
+      {
+        free (zeroes);   /* What is zereos? */
+        return false;
+      }
+
+      /* Initiate new disk block to 0. */
+      bc_write (sector_idx, zeroes, 0, BLOCK_SECTOR_SIZE, 0);
+    }
+
+    /* Advance. */
+    size -= chunk_size;
+    offset += chunk_size;
+  }
+  free (zeroes);
+  return true;
+}
+
+/* Free every disk block which is allocated to file. */
+static void
+free_inode_sectors (struct inode_disk *inode_disk)
+{
+  /**/
+  int i, j = 0;
+
+  /* Free disk block assigned as double indirect method. */
+  if (inode_dis->double_indirect_block_sec > 0)
+  {
+    /* Read 1st index block from buffer cache. */
+    i = 0;
+    /* Secondary index blocks are sequentially accessed 
+       through the primary index block.*/
+    while (ind_block_1->map_table [i] > 0)
+    {
+      /**/
+      /* Read 2nd index block from buffer cache. */
+      j = 0;
+      /* Access disk block number saved in 2nd index block. */
+      while (ind_block_2->map_table [j] > 0)
+      {
+        /* Free allocated disk block using free_map update. */
+        j++;
+      }
+      /* Free 2nd index block. */
+      i++;
+    }
+    /* Free 1st index block. */
+  }
+
+  /* Free disk block allocated as indirect method. */
+  if (inode_disk->indirect_block_sec > 0)
+  {
+    /**/
+    /* Read index block from buffer cache. */
+    /* Access disk block number saved in index block. */
+    while (ind_block->map_table [i] >0)
+    {
+      /* Free allocated disk block using free_map update. */
+      i++;
+    }
+    /**/
+  }
+
+  /* Free disk block*/
+  while (inode_disk->direct_map_table [i] > 0)
+  {
+    /* Free allocated disk block using free_map update. */
+    i++;
+  }
 }

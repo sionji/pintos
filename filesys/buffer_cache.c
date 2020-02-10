@@ -7,8 +7,6 @@
 /* Number of cache entry (32KByte). */
 #define BUFFER_CACHE_ENTRY_NB 64 
 
-/* Indicates buffer cache memory space. */
-void *p_buffer_cache;
 /* Array of buffer head. */
 struct buffer_head buffer_head [BUFFER_CACHE_ENTRY_NB];
 /* Victim entry chooser at clock algorithm. */
@@ -19,16 +17,16 @@ struct lock general;
 void
 bc_init (void)
 {
-  /* Allocate buffer cache in memory. */
-  p_buffer_cache = malloc (BLOCK_SECTOR_SIZE * BUFFER_CACHE_ENTRY_NB);
   /* p_buffer_cache points buffer cache. */
   /* Initiate global variable buffer_head. */
   unsigned int i = 0;
   for (i = 0; i < BUFFER_CACHE_ENTRY_NB; i++)
   {
+    /* Allocate buffer cache in memory. */
+    void *p_buffer_cache = malloc (BLOCK_SECTOR_SIZE);
     buffer_head [i].dirty = false;
     buffer_head [i].clock_bit = false;
-    buffer_head [i].data = p_buffer_cache + BLOCK_SECTOR_SIZE * i;
+    buffer_head [i].data = p_buffer_cache;
     buffer_head [i].sector = 0;
     buffer_head [i].valid = false;
     lock_init (&buffer_head [i].head_lock);
@@ -47,9 +45,12 @@ bc_term (void)
   /* Using bc_flush_all_entries to flush every buffer cache to disk. */
   bc_flush_all_entries ();
   /* Deallocate buffer cache memory space. */
-  free (p_buffer_cache);
+  unsigned int i = 0;
+  for (i = 0; i < BUFFER_CACHE_ENTRY_NB; i++)
+    free (buffer_head [i].data);
 }
 
+/* Save data in buffer from buffer_cache. */
 bool
 bc_read (block_sector_t sector_idx, void *buffer,
          off_t bytes_read, int chunk_size, int sector_ofs)
@@ -80,6 +81,7 @@ bc_read (block_sector_t sector_idx, void *buffer,
   return true;
 }
 
+/* Save data in buffer_cache from buffer. */
 bool
 bc_write (block_sector_t sector_idx, void *buffer,
           off_t bytes_written, int chunk_size, int sector_ofs)
