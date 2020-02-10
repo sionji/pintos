@@ -6,6 +6,7 @@
 #include "filesys/free-map.h"
 #include "filesys/inode.h"
 #include "filesys/directory.h"
+#include "filesys/buffer_cache.h"
 
 /* Partition that contains the file system. */
 struct block *fs_device;
@@ -17,6 +18,15 @@ static void do_format (void);
 void
 filesys_init (bool format) 
 {
+  /* bc_init () *MUST* be called before do_format () called. */
+  /* do_format () format bitmap and block using free_map_create (). 
+     free_map_create () calls file_write () and 
+     file_write () calls inode_write_at ().
+     inode_write_at () calls bc_write (). */
+  /* bc_init () *MUST* be called before bc_write () called. 
+     That's why bc_init () is located at front of function. */
+  bc_init ();
+
   fs_device = block_get_role (BLOCK_FILESYS);
   if (fs_device == NULL)
     PANIC ("No file system device found, can't initialize file system.");
@@ -28,6 +38,7 @@ filesys_init (bool format)
     do_format ();
 
   free_map_open ();
+
 }
 
 /* Shuts down the file system module, writing any unwritten data
@@ -35,6 +46,8 @@ filesys_init (bool format)
 void
 filesys_done (void) 
 {
+  /* Added code for buffer cache. */
+  bc_term ();
   free_map_close ();
 }
 
