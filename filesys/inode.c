@@ -12,6 +12,10 @@
 /* Identifies an inode. */
 #define INODE_MAGIC 0x494e4f44
 
+/* Added code for extensible file. */
+#define DIRECT_BLOCK_ENTRIES 124
+#define INDIRECT_BLOCK_ENTRIES 128 
+
 /* On-disk inode.
    Must be exactly BLOCK_SECTOR_SIZE bytes long. */
 struct inode_disk
@@ -19,7 +23,7 @@ struct inode_disk
     off_t length;                       /* File size in bytes. */
     unsigned magic;                     /* Magic number. */
     /* Array of disk block number which access directly. */
-    block_sector_t direct_map_table [];
+    block_sector_t direct_map_table [DIRECT_BLOCK_ENTRIES];
     /* Number of indirect-accessing index block. */
     block_sector_t indirect_block_sec;
     /* If it access as double-indirect, first index block number. */
@@ -42,21 +46,70 @@ struct inode
     int open_cnt;                       /* Number of openers. */
     bool removed;                       /* True if deleted, false otherwise. */
     int deny_write_cnt;                 /* 0: writes ok, >0: deny writes. */
-    struct lock extend_lock;
+    struct lock extend_lock;            /* Lock when aceessing inode. */
   };
 
-/* Returns the block device sector that contains byte offset POS
-   within INODE.
-   Returns -1 if INODE does not contain data for a byte at offset
-   POS. */
+/* Modified codes for extensible file. */
+/* Return disk block number using file offset. */
 static block_sector_t
-byte_to_sector (const struct inode *inode, off_t pos) 
+byte_to_sector (const struct inode_disk *inode_disk, off_t pos)
 {
-  ASSERT (inode != NULL);
-  if (pos < inode->data.length)
-    return inode->data.start + pos / BLOCK_SECTOR_SIZE;
-  else
-    return -1;
+  block_sector_t result_sec;    /* Disk block number to return. */
+
+  if (pos < inode_disk->length)
+  {
+    struct inode_indirect_block *ind_block;
+    struct sector_location sec_loc;
+    locate_byte (pos, &sec_loc);  /* Calculate index block offset.*/
+
+    switch (sec_loc.directness)
+    {
+      case NORMAL_DIRECT : 
+        {
+          /* Get disk block number from on-disk inode direct_map_table. */
+          result_sec = inode_disk->direct_map_table [];
+          break;
+        }
+
+      case INDIRECT :
+        {
+          ind_block = (struct inode_indirect_block *) malloc (BLOCK_SECTOR_SIZE);
+          if (ind_block)
+          {
+            /* Read index block from buffer cache. */
+            bc_read (inode_disk->indirect_block_sec, ind_block, 0, BLOCK_SECTOR_SIZE, 0);
+            /* Check disk block number from index block. */
+            result_sec = ind_block->map_table [sec_loc.index1];
+          }
+          else
+            result_sec = 0;
+
+          free (ind_block);
+          break;
+        }
+        
+      case DOUBLE_INDIRECT :
+        {
+          ind_block = (struct inode_indirect_block *) malloc (BLOCK_SECTOR_SIZE);
+          if (ind_block)
+          {
+            /* Read 1st index block from buffer cache. */
+            bc_read (inode_disk->indirect_block_sec, ind_block, 0, BLOCK_SECTOR_SIZE, 0); 
+            /* Read 2nd index block from buffer cache. */
+            bc_read (inode_disk->double_indirect_block_sec, ind_block, 0, BLOCK_SECTOR_SIZE, 0);
+            /* Check disk block number from 2nd index block. */
+            result_sec = ind_block [];
+          }
+        }
+
+      default :
+        result_sec = 0;
+    }
+    /**/
+  }
+
+  /**/
+  return result_sec;
 }
 
 /* List of open inodes, so that opening a single inode twice
@@ -93,20 +146,13 @@ inode_create (block_sector_t sector, off_t length)
       size_t sectors = bytes_to_sectors (length);
       disk_inode->length = length;
       disk_inode->magic = INODE_MAGIC;
-      if (free_map_allocate (sectors, &disk_inode->start)) 
-        {
-          block_write (fs_device, sector, disk_inode);
-          if (sectors > 0) 
-            {
-              static char zeros[BLOCK_SECTOR_SIZE];
-              size_t i;
-              
-              for (i = 0; i < sectors; i++) 
-                block_write (fs_device, disk_inode->start + i, zeros);
-            }
-          success = true; 
-        } 
+
+      /* Added codes. */
+      if (length > 0)
+        inode_update_file_length (disk_inode, ,);
+      bc_write (sector, disk_inode, 0, BLOCK_SECTOR_SIZE, 0);
       free (disk_inode);
+      success = true;
     }
   return success;
 }
@@ -143,7 +189,10 @@ inode_open (block_sector_t sector)
   inode->open_cnt = 1;
   inode->deny_write_cnt = 0;
   inode->removed = false;
-  block_read (fs_device, inode->sector, &inode->data);
+
+  /* Fixed code for extensible file. */
+  lock_init (&inode->extend_lock);
+  //block_read (fs_device, inode->sector, &inode->data);
   return inode;
 }
 
@@ -182,9 +231,12 @@ inode_close (struct inode *inode)
       /* Deallocate blocks if removed. */
       if (inode->removed) 
         {
-          free_map_release (inode->sector, 1);
-          free_map_release (inode->data.start,
-                            bytes_to_sectors (inode->data.length)); 
+          /* Get on-disk inode structrue by get_disk_inode (). */
+          get_disk_inode ();
+          /* Deallocate each blocks by free_inode_sectors (). */
+          free_inode_sectors ();
+          /* Deallocate on-disk inode by free_map_release (). */
+          free_map_release ();
         }
 
       free (inode); 
@@ -210,10 +262,16 @@ inode_read_at (struct inode *inode, void *buffer_, off_t size, off_t offset)
   off_t bytes_read = 0;
   uint8_t *bounce = NULL;
 
+  /* Added codes for extensible file. */
+  struct inode_disk *inode_disk = malloc (BLOCK_SECTOR_SIZE);
+  if (inode_disk == NULL)
+    return 0;
+  get_disk_inode (inode, inode_disk);
+
   while (size > 0) 
     {
       /* Disk sector to read, starting byte offset within sector. */
-      block_sector_t sector_idx = byte_to_sector (inode, offset);
+      block_sector_t sector_idx = byte_to_sector (inode_disk, offset);
       int sector_ofs = offset % BLOCK_SECTOR_SIZE;
 
       /* Bytes left in inode, bytes left in sector, lesser of the two. */
@@ -252,10 +310,27 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
   if (inode->deny_write_cnt)
     return 0;
 
+  /* Added codes for extensible file. */
+  struct inode_disk *inode_disk = malloc (BLOCK_SECTOR_SIZE);
+  if (inode_disk == NULL)
+    return 0;
+  get_disk_inode (inode, inode_disk);
+
+  lock_acquire (&inode->extend_lock);
+  int old_length = inode_disk->length;
+  int write_end = offset + size - 1;
+
+  if (write_end > old_length - 1)
+  {
+    /* Update on-disk inode. */
+    inode_disk->length = write_end;
+  }
+  lock_release (&inode->extend_lock);
+
   while (size > 0) 
     {
       /* Sector to write, starting byte offset within sector. */
-      block_sector_t sector_idx = byte_to_sector (inode, offset);
+      block_sector_t sector_idx = byte_to_sector (inode_disk, offset);
       int sector_ofs = offset % BLOCK_SECTOR_SIZE;
 
       /* Bytes left in inode, bytes left in sector, lesser of the two. */
@@ -275,6 +350,9 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
       offset += chunk_size;
       bytes_written += chunk_size;
     }
+
+  /* Write modified struct disk_inode to buffer cache. */
+  bc_write (, inode_disk, 0, BLOCK_SECTOR_SIZE, 0);
 
   return bytes_written;
 }
@@ -309,10 +387,6 @@ inode_length (const struct inode *inode)
 /* ----------------------------------------------------------- */
 /* Added codes for extensible file. */
 
-/* Global variables. */
-unsigned int INDIRECT_BLOCK_ENTRIES = 64;
-unsigned int DIRECT_BLOCK_ENTREIS = 64;
-
 enum direct_t 
 {
   NORMAL_DIRECT = 0;
@@ -337,15 +411,14 @@ inode_indirect_block
   block_sector_t map_table [INDIRECT_BLOCK_ENTRIES];
 };
 
-/* Transfer data to inode_dist from buffer_cache. */
+/* Transfer data to inode_disk from buffer_cache. */
 static bool
 get_disk_inode (const struct inode *inode; struct inode_disk *inode_disk)
 {
   /* Using bc_read (), read on-disk inode from buffer_cache and
      save it to inode_disk. */
   block_sector_t sector_idx = inode->sector;
-  bc_read (sector_idx, inode_disk->direct_map_table [sector_idx],
-     0, BLOCK_SECTOR_SIZE, 0);
+  bc_read (sector_idx, inode_disk, 0, BLOCK_SECTOR_SIZE, 0);
   /* Return true. */
   return true;
 }
@@ -361,18 +434,24 @@ locate_byte (off_t pos, struct sector_location *sec_loc)
   if (pos_sector < DIRECT_BLOCK_ENTRIES) 
   {
     /* Update variable of struct sector_location. */
+    sec_loc->directness = NORMAL_DIRECT;
   }
 
   else if (pos_sector < (off_t) (DIRECT_BLOCK_ENTRIES
         + INDIRECT_BLOCK_ENTRIES))
   {
     /* Update variable of struct sector_location. */
+    sec_loc->directness = INDIRECT;
+    sec_loc-index1 = ;
   }
 
   else if (pos_sector < (off_t) (DIRECT_BLOCK_ENTRIES
         + INDIRECT_BLOC_ENTRIES * (INDIRECT_BLOCK_ENTRIES + 1)))
   {
     /* Update variable of struct sector_location. */
+    sec_loc->directness = DOUBLE_INDIRECT;
+    sec_loc->index1 = ;
+    sec_loc->index2 = ;
   }
 
   else
@@ -386,7 +465,7 @@ static inline off_t
 map_table_offset (int index)
 {
   /* Change offset value to byte and return. */
-  return index * sizeof (uint8_t);
+  return index * sizeof (uint32_t);
 }
 
 /* Update newly assigned disk block number to inode_disk. */
@@ -395,11 +474,16 @@ register_sector (struct inode_disk *inode_disk,
     block_sector_t new_sector, struct sector_location sec_loc)
 {
   /* Do something. */
+  off_t sector_cnt = (inode_disk->length / BLOCK_SECTOR_SIZE);
+  off_t direct_cnt = (sector_cnt < DIRECT_BLOCK_ENTRIES)? 
+                      sector_cnt: (sector_cnt - DIRECT_BLOCK_ENTRIES);
+
   switch (sec_loc.directness)
   {
     case NORMAL_DIRECT :
       {
         /* Update newly assigned disk number to inode_disk. */
+        inode_disk->direct_map_table [new_sector] = new_sector;
         break;
       }
 
@@ -434,62 +518,6 @@ register_sector (struct inode_disk *inode_disk,
   return true;
 }
 
-/* Return disk block number using file offset. */
-static block_sector_t
-byte to sector (const struct inode_disk *inode_disk, off_t pos)
-{
-  block_sector_t result_sec;    /* Disk block number to return. */
-
-  if (pos < inode_disk->length)
-  {
-    struct inode_indirect_block *ind_block;
-    struct sector_location sec_loc;
-    locate_byte (pos, &sec_loc);  /* Calculate index block offset.*/
-
-    switch (sec_loc.directness)
-    {
-      case NORMAL_DIRECT : 
-        {
-          /* Get disk block number from on-disk inode direct_map_table. */
-          break;
-        }
-
-      case INDIRECT :
-        {
-          ind_block = (struct inode_indirect_block *) malloc (BLOCK_SECTOR_SIZE);
-          if (ind_block)
-          {
-            /* Read index block from buffer cache. */
-            /* Check disk block number from index block. */
-          }
-          else
-            result_sec = 0;
-
-          free (ind_block);
-          break;
-        }
-        
-      case DOUBLE_INDIRECT :
-        {
-          ind_block = (struct inode_indirect_block *) malloc (BLOCK_SECTOR_SIZE);
-          if (ind_block)
-          {
-            /* Read 1st index block from buffer cache. */
-            /* Read 1st index block from buffer cache. */
-            /* Check disk block number from 2nd index block.*/
-          }
-        }
-
-      default :
-        result_sec = 0;
-    }
-    /**/
-  }
-
-  /**/
-  return result_sec;
-}
-
 /* If file offset is larger than it's original file size, 
    then allocate new disk block and update inode. */
 /* start_pos : Start offset of file area to increase. 
@@ -503,6 +531,7 @@ inode_update_file_length (struct inode_disk *inode_disk,
   while (size > 0) 
   {
     /* Calc offset within disk block. */
+    int sector_ofs = offset % BLOCK_SECTOR_SIZE;
     if (sector_ofs > 0)
     {
       /* If block_offset is larger than 0, it is already assigned block. */
@@ -540,7 +569,7 @@ free_inode_sectors (struct inode_disk *inode_disk)
   int i, j = 0;
 
   /* Free disk block assigned as double indirect method. */
-  if (inode_dis->double_indirect_block_sec > 0)
+  if (inode_disk->double_indirect_block_sec > 0)
   {
     /* Read 1st index block from buffer cache. */
     i = 0;
