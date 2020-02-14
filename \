@@ -402,7 +402,6 @@ static inline off_t map_table_offset (int index);
 static bool register_sector (struct inode_disk *, block_sector_t,
     struct sector_location);
 bool inode_update_file_length (struct inode_disk *, off_t, off_t);
-block_sector_t alloc_indirect_index_block (void);
 
 enum direct_t 
 {
@@ -492,7 +491,6 @@ register_sector (struct inode_disk *inode_disk,
     block_sector_t new_sector, struct sector_location sec_loc)
 {
   /* Do something. */
-  unsigned int i = 0;
   switch (sec_loc.directness)
   {
     case NORMAL_DIRECT :
@@ -508,24 +506,13 @@ register_sector (struct inode_disk *inode_disk,
         if (new_block == NULL)
           return false;
 
-        /* In case that indirect block is already exist. */
-        if (inode_disk->indirect_block_sec > 0)
-          bc_read (inode_disk->indirect_block_sec, new_block, 0, BLOCK_SECTOR_SIZE, 0);
-        /* In case that indirect block is not exist yet.*/
-        else
-        { 
-          /* Allocater indirect index block. */
-          block_sector_t indirect_idx = alloc_indirect_index_block ();
-          inode_disk->indirect_block_sec = indirect_idx;
-          /* Read indirect index block to memory from disk. */
-          bc_read (indirect_idx, new_block, 0, BLOCK_SECTOR_SIZE, 0);
-        }
-
-        /* Save new sector number to map table. */
+        /* Save newly assigned block number to index block. */
         new_block->map_table [sec_loc.index1] = new_sector;
-        /* Write indirect index block to buffer cache. */
-        bc_write (inode_disk->indirect_block_sec, new_block, 0, BLOCK_SECTOR_SIZE, 0);
-        /* END. */
+        block_sector_t indirect_block_sec;
+        free_map_allocate (1, indirect_block_sec);
+        inode_disk->indirect_block_sec = indirect_block_sec;
+        /* Write index block to buffer cache. */
+        bc_write (new_sector, new_block, 0, BLOCK_SECTOR_SIZE, 0);
         free (new_block);
         break;
       }
@@ -536,41 +523,11 @@ register_sector (struct inode_disk *inode_disk,
         if (new_block == NULL)
           return false;
 
-        /* Read first indirect index block. */
-        block_sector_t first_idx = inode_disk->double_indirect_block_sec;
-        /* In case that double indirect block is already exist. */
-        if (first_idx > 0)
-          bc_read (first_idx, new_block, 0, BLOCK_SECTOR_SIZE, 0);
-        /* In case that double indirect block is not exist yet. */
-        else
-        {
-          first_idx = alloc_indirect_index_block ();
-          inode_disk->double_indirect_block_sec = first_idx;
-          /* Read first indirect index block to memory from disk. */
-          bc_read (first_idx, new_block, 0, BLOCK_SECTOR_SIZE, 0);
-        }
-        
-        /* Read second indirect index block. */
-        block_sector_t second_idx = new_block->map_table [sec_loc.index2];
-        /* In case that second index block is exist. */
-        if (second_idx > 0)
-          bc_read (second_idx, new_block, 0, BLOCK_SECTOR_SIZE, 0);
-        /* In case that second index block is not exist yet.*/
-        else
-        {
-          second_idx = alloc_indirect_index_block ();
-          new_block->map_table [sec_loc.index2] = second_idx;
-          /* Write modified first indirect index block to disk from memory. */
-          bc_write (first_idx, new_block, 0, BLOCK_SECTOR_SIZE, 0);
-          /* Read second indirect index block to memory. */
-          bc_read (second_idx, new_block, 0, BLOCK_SECTOR_SIZE, 0);
-        }
-
-        /* Save new sector number to map table. */
-        new_block->map_table [sec_loc.index1] = new_sector;
-        /* Write indirect index block to buffer_cache. */
-        bc_write (second_idx, new_block, 0, BLOCK_SECTOR_SIZE, 0);
-        /* END. */
+        /* Save newly assigned block address in 2nd index block, 
+           write each index block to buffer cache. */
+        new_block->map_table [] = new_sector;
+        inode_disk->double_indirect_block_sec = ;
+        bc_write (new_sector, new_block, 0, BLOCK_SECTOR_SIZE, 0);
         free (new_block);
         break;
       }
@@ -581,28 +538,6 @@ register_sector (struct inode_disk *inode_disk,
       }
   }
   return true;
-}
-
-/* Allocate new indirect index block and write it to disk. 
-   return sector number of indirect index block. */
-block_sector_t
-alloc_indirect_index_block (void)
-{
-  int i = 0;
-  /* Return value. */
-  block_sector_t new_idx;
-  /* Newly assigned indirect block. */
-  struct inode_indirect_block *new_block = malloc (BLOCK_SECTOR_SIZE);
-  /* Get indirect index block number. */
-  free_map_allocate (1, &new_idx);
-  /* Initialize. */
-  for (i = 0; i < INDIRECT_BLOCK_ENTRIES; i++)
-    new_block->map_table [i] = 0;
-  /* Write indirect blocks to Disk. */
-  bc_write (new_idx, new_block, 0, BLOCK_SECTOR_SIZE, 0);
-  /* Free new_block. */
-  free (new_block);
-  return new_idx;
 }
 
 /* If file offset is larger than it's original file size, 
