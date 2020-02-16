@@ -155,7 +155,12 @@ inode_create (block_sector_t sector, off_t length)
 
       /* Added codes. */
       if (length > 0)
-        inode_update_file_length (disk_inode, ,);
+        success = inode_update_file_length (disk_inode, 0, length);
+			if (!success)
+			{
+				free (disk_inode);
+				return success;
+			}
       bc_write (sector, disk_inode, 0, BLOCK_SECTOR_SIZE, 0);
       free (disk_inode);
       success = true;
@@ -332,7 +337,9 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
   if (write_end > old_length - 1)
   {
     /* Update on-disk inode. */
-    inode_disk->length = write_end;
+		inode_update_file_length (&inode_disk, inode_disk.length, write_end);
+		disk_inode->length = write_end + 1;
+		bc_write (inode->sector, inode_disk, 0, BLOCK_SECTOR_SIZE, 0);
   }
   lock_release (&inode->extend_lock);
 
@@ -622,19 +629,29 @@ inode_update_file_length (struct inode_disk *inode_disk,
     return false;
 
   /* Do something. */
-  off_t offset = end_pos - start_pos;
+  off_t size = end_pos - start_pos;
+	off_t offset = start_pos;
   block_sector_t sector_idx;
   int chunk_size;
-  struct inode_indirect_block sec_loc;
+  struct sector_location sec_loc;
+
+	/* Set zeroes. */
   char *zeroes = malloc (BLOCK_SECTOR_SIZE);
-  memcpy (zeroes, 0, BLOCK_SECTOR_SIZE);
   if (zeroes == NULL)
     return false;
+  memset (zeroes, 0, BLOCK_SECTOR_SIZE);
+
+	/* Change inode_disk file length info. 
+	inode_disk->length = end_pos; */
 
   while (size > 0) 
   {
     /* Calc offset within disk block. */
     int sector_ofs = offset % BLOCK_SECTOR_SIZE;
+		/* Calc chunk_size. */
+		if (size >= BLOCK_SECTOR_SIZE)
+			chunk_size = BLOCK_SECTOR_SIZE - sector_ofs;
+
     if (sector_ofs > 0)
     {
       /* If block_offset is larger than 0, it is already assigned block. */
@@ -645,12 +662,12 @@ inode_update_file_length (struct inode_disk *inode_disk,
       if (free_map_allocate (1, &sector_idx))
       {
         /* Update newly assigned disk block number to inode_disk. */
-        locate_byte (, &sec_loc);
+        locate_byte (offset, &sec_loc);
         register_sector (inode_disk, sector_idx, sec_loc);
       }
       else
       {
-        free (zeroes);   /* What is zereos? */
+        free (zeroes);
         return false;
       }
 
