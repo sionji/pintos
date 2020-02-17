@@ -10,6 +10,7 @@
 #include "devices/input.h"
 #include <devices/shutdown.h>
 #include <stdio.h>
+#include <debug.h>
 #include <syscall-nr.h>
 #include "threads/interrupt.h"
 #include "threads/thread.h"

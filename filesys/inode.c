@@ -73,7 +73,6 @@ struct inode
     struct lock extend_lock;            /* Lock when aceessing inode. */
   };
 
-struct inode_indirect_block;
 static bool get_disk_inode (const struct inode *, struct inode_disk *);
 static void locate_byte (off_t pos, struct sector_location *);
 static inline off_t map_table_offset (int index);
@@ -429,7 +428,7 @@ off_t
 inode_length (const struct inode *inode)
 {
   struct inode_disk inode_disk;
-  bc_read (inode->sector, &inode_disk, 0, BLOCK_SECTOR_SIZE, 0);
+  get_disk_inode (inode, &inode_disk);
   return inode_disk.length;
 }
 
