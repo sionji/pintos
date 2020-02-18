@@ -367,7 +367,8 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
   if (write_end > old_length - 1)
   {
     /* Update on-disk inode. */
-		inode_update_file_length (inode_disk, inode_disk->length, write_end);
+		inode_update_file_length (inode_disk, old_length, write_end);
+    /* Update length info. */
 		inode_disk->length = write_end + 1;
 		bc_write (inode->sector, inode_disk, 0, BLOCK_SECTOR_SIZE, 0);
   }
@@ -508,7 +509,7 @@ register_sector (struct inode_disk *inode_disk,
         break;
       }
 
-    case INDIRECT :
+      case INDIRECT :
       {
         struct inode_indirect_block *new_block = malloc (BLOCK_SECTOR_SIZE);
         if (new_block == NULL)
@@ -530,7 +531,12 @@ register_sector (struct inode_disk *inode_disk,
         /* Save new sector number to map table. */
         new_block->map_table [sec_loc.index1] = new_sector;
         /* Write indirect index block to buffer cache. */
-        bc_write (inode_disk->indirect_block_sec, new_block, 0, BLOCK_SECTOR_SIZE, 0);
+        /* Write indirect block, not buffer block, so
+           bytes_written  = map_table_offset (),
+           chunk_size = sizeof (uint32_t) = 4 bytes,
+           sector_ofs = map_table_offset (). */
+        bc_write (inode_disk->indirect_block_sec, new_block, map_table_offset (sec_loc.index1),
+            4, map_table_offset (sec_loc.index1));
         /* END. */
         free (new_block);
         break;
@@ -567,7 +573,8 @@ register_sector (struct inode_disk *inode_disk,
           second_idx = alloc_indirect_index_block ();
           new_block->map_table [sec_loc.index2] = second_idx;
           /* Write modified first indirect index block to disk from memory. */
-          bc_write (first_idx, new_block, 0, BLOCK_SECTOR_SIZE, 0);
+          bc_write (first_idx, new_block, map_table_offset (sec_loc.index2), 
+              4, map_table_offset (sec_loc.index2));
           /* Read second indirect index block to memory. */
           bc_read (second_idx, new_block, 0, BLOCK_SECTOR_SIZE, 0);
         }
@@ -575,7 +582,8 @@ register_sector (struct inode_disk *inode_disk,
         /* Save new sector number to map table. */
         new_block->map_table [sec_loc.index1] = new_sector;
         /* Write indirect index block to buffer_cache. */
-        bc_write (second_idx, new_block, 0, BLOCK_SECTOR_SIZE, 0);
+        bc_write (second_idx, new_block, map_table_offset (sec_loc.index1), 
+            4, map_table_offset (sec_loc.index1));
         /* END. */
         free (new_block);
         break;
@@ -607,7 +615,7 @@ alloc_indirect_index_block (void)
   /* Write indirect blocks to Disk. */
   bc_write (new_idx, new_block, 0, BLOCK_SECTOR_SIZE, 0);
   /* Free new_block. */
-  free (new_block);
+  //free (new_block);
   return new_idx;
 }
 
@@ -615,6 +623,7 @@ alloc_indirect_index_block (void)
    then allocate new disk block and update inode. */
 /* start_pos : Start offset of file area to increase. 
    end_pos : Last offset of file area to increase. */
+/* WARNING : It does not update inode_disk length info. */
 bool 
 inode_update_file_length (struct inode_disk *inode_disk, 
     off_t start_pos, off_t end_pos)
@@ -628,32 +637,43 @@ inode_update_file_length (struct inode_disk *inode_disk,
     return false;
 
   /* Do something. */
-  off_t size = end_pos - start_pos;
-	off_t offset = start_pos;
-  block_sector_t sector_idx;
-  int chunk_size = BLOCK_SECTOR_SIZE;
-  struct sector_location sec_loc;
+  off_t size = end_pos - start_pos;  /* Size to increase. */
+	off_t offset = start_pos;          /* Offset of whole file length. */
+  block_sector_t sector_idx;         /* Block sector index. */
+  int chunk_size;                    /* Number of bytes to actually write into this sector. */
+  struct sector_location sec_loc;    /* Sector location indicator. */
 
 	/* Set zeroes. */
+  /* We know how much file length to increase, not data info. 
+     So we assign zero-initiated block to increased block. */
   char *zeroes = malloc (BLOCK_SECTOR_SIZE);
   if (zeroes == NULL)
     return false;
   memset (zeroes, 0, BLOCK_SECTOR_SIZE);
 
-	/* Change inode_disk file length info. 
-	inode_disk->length = end_pos; */
-
   while (size > 0) 
   {
     /* Calc offset within disk block. */
+    /* SECTOR_OFS is offset of one block, not whole file length offset. */
     int sector_ofs = offset % BLOCK_SECTOR_SIZE;
+
 		/* Calc chunk_size. */
 		if (size >= BLOCK_SECTOR_SIZE)
-			chunk_size = BLOCK_SECTOR_SIZE - sector_ofs;
+    {
+      /* In case that left size is bigger than BLOCK_SECTOR_SIZE. 
+         So chunk_size is left size of one block. */
+      chunk_size = BLOCK_SECTOR_SIZE - sector_ofs;
+    }
+    else
+    {
+      /* In case that left size is smaller than BLOCK_SECTOR_SIZE. */
+      chunk_size = size;
+    }
 
     if (sector_ofs > 0)
     {
       /* If block_offset is larger than 0, it is already assigned block. */
+      /* Do what??? */
     }
     else
     {
@@ -670,7 +690,7 @@ inode_update_file_length (struct inode_disk *inode_disk,
         return false;
       }
 
-      /* Initiate new disk block to 0. */
+      /* Initiate new disk block which is initialized as 0. */
       bc_write (sector_idx, zeroes, 0, BLOCK_SECTOR_SIZE, 0);
     }
 
@@ -705,8 +725,7 @@ free_inode_sectors (struct inode_disk *inode_disk)
       /**/
       /* Read 2nd index block from buffer cache. */
       ind_block_2 = malloc (BLOCK_SECTOR_SIZE);
-      bc_read (inode_disk->indirect_block_sec, 
-               ind_block_2, 0, BLOCK_SECTOR_SIZE, 0);
+      bc_read (ind_block_1->map_table [i], ind_block_2, 0, BLOCK_SECTOR_SIZE, 0);
       j = 0;
       /* Access disk block number saved in 2nd index block. */
       while (ind_block_2->map_table [j] > 0)
@@ -729,6 +748,7 @@ free_inode_sectors (struct inode_disk *inode_disk)
   if (inode_disk->indirect_block_sec > 0)
   {
     /**/
+    ind_block = malloc (BLOCK_SECTOR_SIZE);
     /* Read index block from buffer cache. */
     bc_read (inode_disk->indirect_block_sec, ind_block, 0, BLOCK_SECTOR_SIZE, 0);
     i = 0;
@@ -736,7 +756,7 @@ free_inode_sectors (struct inode_disk *inode_disk)
     while (ind_block->map_table [i] >0)
     {
       /* Free allocated disk block using free_map update. */
-      free_map_release (ind_block_2->map_table [i], 1);
+      free_map_release (ind_block->map_table [i], 1);
       i++;
     }
     /**/
