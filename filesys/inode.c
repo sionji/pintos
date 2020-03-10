@@ -362,10 +362,11 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
 
   if (write_end > old_length - 1)
   {
+    /* Update length info before call inode_update_file_length (). */
+		inode_disk->length = write_end + 1;
     /* Update on-disk inode. */
 		inode_update_file_length (inode_disk, old_length, write_end);
-    /* Update length info. */
-		inode_disk->length = write_end + 1;
+
 		bc_write (inode->sector, inode_disk, 0, BLOCK_SECTOR_SIZE, 0);
   }
   lock_release (&inode->extend_lock);
@@ -386,7 +387,7 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
       if (chunk_size <= 0)
         break;
       
-      bc_write (sector_idx, buffer, bytes_written, chunk_size, sector_ofs);
+      bc_write (sector_idx, (void *)buffer, bytes_written, chunk_size, sector_ofs);
 
       /* Advance. */
       size -= chunk_size;
@@ -472,8 +473,8 @@ locate_byte (off_t pos, struct sector_location *sec_loc)
     /* Update variable of struct sector_location. */
     sec_loc->directness = DOUBLE_INDIRECT;
     pos_sector = pos_sector - (DIRECT_BLOCK_ENTRIES + INDIRECT_BLOCK_ENTRIES);
-    sec_loc->index1 = pos_sector % INDIRECT_BLOCK_ENTRIES;
-    sec_loc->index2 = pos_sector / INDIRECT_BLOCK_ENTRIES;
+    sec_loc->index1 = pos_sector / INDIRECT_BLOCK_ENTRIES;
+    sec_loc->index2 = pos_sector % INDIRECT_BLOCK_ENTRIES;
   }
 
   else
@@ -506,7 +507,7 @@ register_sector (struct inode_disk *inode_disk,
         break;
       }
 
-      case INDIRECT :
+    case INDIRECT :
       {
         struct inode_indirect_block *new_block = malloc (BLOCK_SECTOR_SIZE);
         if (new_block == NULL)
@@ -519,15 +520,13 @@ register_sector (struct inode_disk *inode_disk,
         else
         { 
           /* Allocater indirect index block. */
-          block_sector_t indirect_idx;
-          if (!free_map_allocate (1, &indirect_idx))
+          if (!free_map_allocate (1, &inode_disk->indirect_block_sec))
             return false;
           else
           {
             /* Initialize. */
             for (i = 0; i < INDIRECT_BLOCK_ENTRIES; i++)
               new_block->map_table [i] = 0;
-            inode_disk->indirect_block_sec = indirect_idx;
           }
         }
 
@@ -550,14 +549,13 @@ register_sector (struct inode_disk *inode_disk,
           return false;
 
         /* Read first indirect index block. */
-        block_sector_t first_idx = inode_disk->double_indirect_block_sec;
         /* In case that double indirect block is already exist. */
-        if (first_idx > 0)
-          bc_read (first_idx, first_block, 0, BLOCK_SECTOR_SIZE, 0);
+        if (inode_disk->double_indirect_block_sec > 0)
+          bc_read (inode_disk->double_indirect_block_sec, first_block, 0, BLOCK_SECTOR_SIZE, 0);
         /* In case that double indirect block is not exist yet. */
         else
         {
-          if (!free_map_allocate (1, &first_idx))
+          if (!free_map_allocate (1, &inode_disk->double_indirect_block_sec))
           {
             free (first_block);
             return false;
@@ -567,7 +565,6 @@ register_sector (struct inode_disk *inode_disk,
             /* Initialize. */
             for (i = 0; i < INDIRECT_BLOCK_ENTRIES; i++)
               first_block->map_table [i] = 0;
-            inode_disk->double_indirect_block_sec = first_idx;
           }
         }
         
@@ -575,14 +572,14 @@ register_sector (struct inode_disk *inode_disk,
         struct inode_indirect_block *second_block = malloc (BLOCK_SECTOR_SIZE);
         if (second_block == NULL)
           return false;
-        block_sector_t second_idx = first_block->map_table [sec_loc.index2];
+
         /* In case that second index block is exist. */
-        if (second_idx > 0)
-          bc_read (second_idx, second_block, 0, BLOCK_SECTOR_SIZE, 0);
+        if (first_block->map_table [sec_loc.index1] > 0)
+          bc_read (first_block->map_table [sec_loc.index1], second_block, 0, BLOCK_SECTOR_SIZE, 0);
         /* In case that second index block is not exist yet.*/
         else
         {
-          if (!free_map_allocate (1, &second_idx))
+          if (!free_map_allocate (1, &first_block->map_table [sec_loc.index1]))
           {
             free (first_block);
             free (second_block);
@@ -592,16 +589,15 @@ register_sector (struct inode_disk *inode_disk,
           {
             for (i = 0; i < INDIRECT_BLOCK_ENTRIES; i++)
               second_block->map_table [i] = 0;
-            first_block->map_table [sec_loc.index2] = second_idx;
             /* First indirect block may be modified potentially. */
-            bc_write (first_idx, first_block, 0, BLOCK_SECTOR_SIZE, 0);
+            bc_write (inode_disk->double_indirect_block_sec, first_block, 0, BLOCK_SECTOR_SIZE, 0);
           }
         }
 
         /* Save new sector number to map table. */
-        second_block->map_table [sec_loc.index1] = new_sector;
+        second_block->map_table [sec_loc.index2] = new_sector;
         /* Write indirect index block to buffer_cache. */
-        bc_write (second_idx, second_block, 0, BLOCK_SECTOR_SIZE, 0);
+        bc_write (first_block->map_table [sec_loc.index1], second_block, 0, BLOCK_SECTOR_SIZE, 0);
         free (first_block);
         free (second_block);
         break;
@@ -646,19 +642,10 @@ bool
 inode_update_file_length (struct inode_disk *inode_disk, 
     off_t start_pos, off_t end_pos)
 {
-  /* We don't need to increase size. */
-  if (start_pos == end_pos)
-    return true;
-  
-  /* Don't reduce size. */
-  if (start_pos > end_pos)
-    return false;
-
   /* Do something. */
   off_t size = end_pos - start_pos;  /* Size to increase. */
 	off_t offset = start_pos;          /* Offset of whole file length. */
   block_sector_t sector_idx;         /* Block sector index. */
-  int chunk_size;                    /* Number of bytes to actually write into this sector. */
   struct sector_location sec_loc;    /* Sector location indicator. */
 
 	/* Set zeroes. */
@@ -675,23 +662,13 @@ inode_update_file_length (struct inode_disk *inode_disk,
     /* SECTOR_OFS is offset of one block, not whole file length offset. */
     int sector_ofs = offset % BLOCK_SECTOR_SIZE;
 
-		/* Calc chunk_size. */
-		if (size >= BLOCK_SECTOR_SIZE)
-      /* In case that left size is bigger than BLOCK_SECTOR_SIZE. 
-         So chunk_size is left size of one block. */
-      chunk_size = BLOCK_SECTOR_SIZE - sector_ofs;
-    else
-    {
-      /* In case that left size is smaller than BLOCK_SECTOR_SIZE. */
-      /* Even if SIZE is smaller than BLOCK_SECTOR_SIZE, the sector size
-         may be exceeded depending on the size of the offset. For example,
-         SECTOR_OFS = 500 bytes, SIZE = 24 bytes. 
-         SECTOR_OFS + SIZE is bigger than BLOCK_SECTOR_SIZE. */
-      if (sector_ofs + size > BLOCK_SECTOR_SIZE)
-        chunk_size = BLOCK_SECTOR_SIZE - sector_ofs;
-      else
-        chunk_size = size;
-    }
+    int sector_left = BLOCK_SECTOR_SIZE - sector_ofs;
+    int inode_left = inode_disk->length - offset;
+    int min_left = inode_left < sector_left ? inode_left : sector_left;
+
+    int chunk_size = size < min_left ? size : min_left;
+    if (chunk_size <= 0)
+      break;
 
     if (sector_ofs > 0)
     {
