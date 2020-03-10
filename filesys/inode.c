@@ -332,6 +332,8 @@ inode_read_at (struct inode *inode, void *buffer_, off_t size, off_t offset)
       offset += chunk_size;
       bytes_read += chunk_size;
     }
+
+  free (inode_disk);
   return bytes_read;
 }
 
@@ -398,6 +400,7 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
   /* Write modified struct disk_inode to buffer cache. */
   bc_write (inode->sector, inode_disk, 0, BLOCK_SECTOR_SIZE, 0);
 
+  free (inode_disk);
   return bytes_written;
 }
 
@@ -439,9 +442,10 @@ get_disk_inode (const struct inode *inode, struct inode_disk *inode_disk)
 {
   /* Using bc_read (), read on-disk inode from buffer_cache and
      save it to inode_disk. */
-  bc_read (inode->sector, inode_disk, 0, BLOCK_SECTOR_SIZE, 0);
-  /* Return true. */
-  return true;
+  if (bc_read (inode->sector, inode_disk, 0, BLOCK_SECTOR_SIZE, 0))
+    return true;
+  else
+    return false;
 }
 
 /* Verify disk block access method (enum direct_t). */
@@ -521,7 +525,10 @@ register_sector (struct inode_disk *inode_disk,
         { 
           /* Allocater indirect index block. */
           if (!free_map_allocate (1, &inode_disk->indirect_block_sec))
+          {
+            free (new_block);
             return false;
+          }
           else
           {
             /* Initialize. */
@@ -611,28 +618,6 @@ register_sector (struct inode_disk *inode_disk,
   return true;
 }
 
-/* Allocate new indirect index block and write it to disk. 
-   return sector number of indirect index block. */
-block_sector_t
-alloc_indirect_index_block (void)
-{
-  int i = 0;
-  /* Return value. */
-  block_sector_t new_idx;
-  /* Newly assigned indirect block. */
-  struct inode_indirect_block *new_block = malloc (BLOCK_SECTOR_SIZE);
-  /* Get indirect index block number. */
-  free_map_allocate (1, &new_idx);
-  /* Initialize. */
-  for (i = 0; i < INDIRECT_BLOCK_ENTRIES; i++)
-    new_block->map_table [i] = 0;
-  /* Write indirect blocks to Disk. */
-  bc_write (new_idx, new_block, 0, BLOCK_SECTOR_SIZE, 0);
-  /* Free new_block. */
-  //free (new_block);
-  return new_idx;
-}
-
 /* If file offset is larger than it's original file size, 
    then allocate new disk block and update inode. */
 /* start_pos : Start offset of file area to increase. 
@@ -645,6 +630,7 @@ inode_update_file_length (struct inode_disk *inode_disk,
   /* Do something. */
   off_t size = end_pos - start_pos;  /* Size to increase. */
 	off_t offset = start_pos;          /* Offset of whole file length. */
+
   block_sector_t sector_idx;         /* Block sector index. */
   struct sector_location sec_loc;    /* Sector location indicator. */
 
