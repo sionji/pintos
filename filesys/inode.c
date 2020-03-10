@@ -187,12 +187,8 @@ inode_create (block_sector_t sector, off_t length)
 
       /* Added codes. */
       if (length > 0)
-        success = inode_update_file_length (disk_inode, 0, length);
-			if (!success)
-			{
-				free (disk_inode);
-				return success;
-			}
+        inode_update_file_length (disk_inode, 0, length);
+			
       bc_write (sector, disk_inode, 0, BLOCK_SECTOR_SIZE, 0);
       free (disk_inode);
       success = true;

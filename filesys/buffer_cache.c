@@ -86,8 +86,6 @@ bool
 bc_write (block_sector_t sector_idx, void *buffer,
           off_t bytes_written, int chunk_size, int sector_ofs)
 {
-  bool success = false;
-
   lock_acquire (&general);
   /* Search sector_ids in buffer_head and copy to buffer cache. */
   struct buffer_head *head_ptr = bc_lookup (sector_idx);
@@ -110,7 +108,7 @@ bc_write (block_sector_t sector_idx, void *buffer,
   head_ptr->dirty = true;
   lock_release (&head_ptr->head_lock);
 
-  return success;
+  return true;
 }
 
 /* Choose victim entry using clock algorithm. 
