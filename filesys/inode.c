@@ -128,8 +128,9 @@ byte_to_sector (const struct inode_disk *inode_disk, off_t pos)
           {
             /* Read 1st index block from buffer cache. */
             bc_read (inode_disk->double_indirect_block_sec, ind_block, 0, BLOCK_SECTOR_SIZE, 0); 
+            block_sector_t next_idx = ind_block->map_table [sec_loc.index1];
             /* Read 2nd index block from buffer cache. */
-            bc_read (ind_block->map_table [sec_loc.index1], ind_block, 0, BLOCK_SECTOR_SIZE, 0);
+            bc_read (next_idx, ind_block, 0, BLOCK_SECTOR_SIZE, 0);
             /* Check disk block number from 2nd index block. */
             result_sec = ind_block->map_table [sec_loc.index2];
           }
@@ -271,7 +272,7 @@ inode_close (struct inode *inode)
       if (inode->removed) 
         {
           /* Get on-disk inode structrue by get_disk_inode (). */
-          struct inode_disk *disk_inode = malloc (BLOCK_SECTOR_SIZE);
+          struct inode_disk *disk_inode = (struct inode_disk *) malloc (BLOCK_SECTOR_SIZE);
           get_disk_inode (inode, disk_inode);
           /* Deallocate each blocks by free_inode_sectors (). */
           free_inode_sectors (disk_inode);
@@ -700,7 +701,7 @@ free_inode_sectors (struct inode_disk *inode_disk)
   if (inode_disk->double_indirect_block_sec > 0)
   {
     /* Read 1st index block from buffer cache. */
-    ind_block_1 = malloc (BLOCK_SECTOR_SIZE);
+    ind_block_1 = (struct inode_indirect_block *) malloc (BLOCK_SECTOR_SIZE);
     bc_read (inode_disk->double_indirect_block_sec, 
              ind_block_1, 0, BLOCK_SECTOR_SIZE, 0);
     i = 0;
@@ -710,7 +711,7 @@ free_inode_sectors (struct inode_disk *inode_disk)
     {
       /**/
       /* Read 2nd index block from buffer cache. */
-      ind_block_2 = malloc (BLOCK_SECTOR_SIZE);
+      ind_block_2 = (struct inode_indirect_block *) malloc (BLOCK_SECTOR_SIZE);
       bc_read (ind_block_1->map_table [i], ind_block_2, 0, BLOCK_SECTOR_SIZE, 0);
       j = 0;
       /* Access disk block number saved in 2nd index block. */
@@ -734,7 +735,7 @@ free_inode_sectors (struct inode_disk *inode_disk)
   if (inode_disk->indirect_block_sec > 0)
   {
     /**/
-    ind_block = malloc (BLOCK_SECTOR_SIZE);
+    ind_block = (struct inode_indirect_block *) malloc (BLOCK_SECTOR_SIZE);
     /* Read index block from buffer cache. */
     bc_read (inode_disk->indirect_block_sec, ind_block, 0, BLOCK_SECTOR_SIZE, 0);
     i = 0;
@@ -751,6 +752,7 @@ free_inode_sectors (struct inode_disk *inode_disk)
   }
 
   /* Free disk block*/
+  i = 0;
   while (inode_disk->direct_map_table [i] > 0)
   {
     /* Free allocated disk block using free_map update. */
