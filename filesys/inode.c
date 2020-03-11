@@ -129,9 +129,9 @@ byte_to_sector (const struct inode_disk *inode_disk, off_t pos)
             /* Read 1st index block from buffer cache. */
             bc_read (inode_disk->double_indirect_block_sec, ind_block, 0, BLOCK_SECTOR_SIZE, 0); 
             /* Read 2nd index block from buffer cache. */
-            bc_read (ind_block->map_table [sec_loc.index2], ind_block, 0, BLOCK_SECTOR_SIZE, 0);
+            bc_read (ind_block->map_table [sec_loc.index1], ind_block, 0, BLOCK_SECTOR_SIZE, 0);
             /* Check disk block number from 2nd index block. */
-            result_sec = ind_block->map_table [sec_loc.index1];
+            result_sec = ind_block->map_table [sec_loc.index2];
           }
           else
             result_sec = 0;
