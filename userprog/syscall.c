@@ -7,9 +7,11 @@
 #include "filesys/filesys.h"
 #include "filesys/file.h"
 #include "filesys/inode.h"
+#include "filesys/directory.h"
 #include "devices/input.h"
 #include <devices/shutdown.h>
 #include <stdio.h>
+#include <stdbool.h>
 #include <debug.h>
 #include <syscall-nr.h>
 #include "threads/interrupt.h"
@@ -22,6 +24,8 @@ static void syscall_handler (struct intr_frame *);
 void syscall_get_args (void *esp, int *args, int count);
 void do_munmap (struct mmap_file *mmap_file);
 int get_mapid (void);
+bool syscall_readdir (int fd, char *name);
+
 
 void
 syscall_init (void) 
@@ -278,6 +282,60 @@ syscall_handler (struct intr_frame *f)
 				break;
 			}
 
+    case SYS_ISDIR :
+      {
+        int fd;
+
+        syscall_get_args (f->esp, args, 1);
+        fd = (int) args[0];
+        struct file *file = process_get_file (fd);
+
+        f->eax = inode_is_dir (file_get_inode (file));
+        break;
+      }
+
+    case SYS_CHDIR :
+      {
+        char file_name [NAME_MAX + 1];
+        char *path_name;
+        syscall_get_args (f->esp, args, 1);
+        path_name = (char *) args [0];
+
+        struct dir *dir = parse_path (path_name, file_name);
+        dir_close (thread_current ()->cur_dir);
+        thread_current ()->cur_dir = dir;
+
+        f->eax = true;
+        break;
+      }
+
+    case SYS_MKDIR :
+      {
+        char *path_name;
+        syscall_get_args (f->esp, args, 1);
+        path_name = (char *) args [0];
+
+        f->eax = filesys_create_dir (path_name);
+        break;
+      }
+
+    case SYS_READDIR :
+      {
+        syscall_get_args (f->esp, args, 2);
+        f->eax = syscall_readdir ((int) args [0], (char *) args [1]);
+        break;
+      }
+
+    case SYS_INUMBER :
+      {
+        int fd;
+        syscall_get_args (f->esp, args, 1);
+        fd = (int) args [0];
+        struct file *file = process_get_file (fd);
+        f->eax = inode_get_inumber (file_get_inode (file));
+        break;
+      }
+
     default :
 			syscall_exit (-1);
 		  break;
@@ -501,3 +559,18 @@ syscall_munmap (mapid_t mapid)
 			e = list_next (e);
 	}
 }
+
+bool
+syscall_readdir (int fd, char *name)
+{
+  struct file *file = process_get_file (fd);
+  struct inode *inode = file_get_inode (file);
+  if (!inode_is_dir (inode))
+    return false;
+
+  if (!dir_readdir ((struct dir *)file, name))
+    return false;
+
+  return true;
+}
+

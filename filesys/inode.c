@@ -13,7 +13,7 @@
 #define INODE_MAGIC 0x494e4f44
 
 /* Added code for extensible file. */
-#define DIRECT_BLOCK_ENTRIES 124
+#define DIRECT_BLOCK_ENTRIES 123
 #define INDIRECT_BLOCK_ENTRIES 128 
 
 enum direct_t 
@@ -46,6 +46,7 @@ struct inode_disk
   {
     off_t length;                       /* File size in bytes. */
     unsigned magic;                     /* Magic number. */
+    uint32_t is_dir;                    /* 0 : file, 1 : directory. */
     /* Array of disk block number which access directly. */
     block_sector_t direct_map_table [DIRECT_BLOCK_ENTRIES];
     /* Number of indirect-accessing index block. */
@@ -167,7 +168,7 @@ inode_init (void)
    Returns true if successful.
    Returns false if memory or disk allocation fails. */
 bool
-inode_create (block_sector_t sector, off_t length)
+inode_create (block_sector_t sector, off_t length, uint32_t is_dir)
 {
   struct inode_disk *disk_inode = NULL;
   bool success = false;
@@ -185,11 +186,12 @@ inode_create (block_sector_t sector, off_t length)
       disk_inode->magic = INODE_MAGIC;
       disk_inode->indirect_block_sec = 0;
       disk_inode->double_indirect_block_sec = 0;
+      disk_inode->is_dir = is_dir;
 
       /* Added codes. */
       if (length > 0)
         inode_update_file_length (disk_inode, 0, length);
-			
+		
       bc_write (sector, disk_inode, 0, BLOCK_SECTOR_SIZE, 0);
       free (disk_inode);
       success = true;
@@ -759,4 +761,27 @@ free_inode_sectors (struct inode_disk *inode_disk)
     free_map_release (inode_disk->direct_map_table [i], 1);
     i++;
   }
+}
+
+bool
+inode_is_dir (const struct inode *inode)
+{
+  bool result = false;
+
+  if (inode == NULL)
+    return false;
+
+  /* Allocate inode_disk to memory. */
+  struct inode_disk *disk_inode = (struct inode_disk *)malloc (sizeof (struct inode_disk));
+  if (disk_inode == NULL)
+    return false;
+
+  /* Store inode_disk info from on-disk inode. */
+  get_disk_inode (inode, disk_inode);
+
+  /* Return on-disk inode info. */
+  result = (disk_inode->is_dir == 1 ? true : false);
+
+  free (disk_inode);
+  return result;
 }
