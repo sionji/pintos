@@ -65,7 +65,8 @@ filesys_create (const char *name, off_t initial_size)
   /* Original code. */
   //struct dir *dir = dir_open_root ();
   /* New codes. */
-  char *path_name = name;
+  char path_name [100];
+  strlcpy (path_name, name, sizeof(name) + 1);
   char file_name [NAME_MAX + 1];
   struct dir *dir = parse_path (path_name, file_name);
   /* PARSE_PATH destroy char string to NULL, maybe needs using copy. */
@@ -92,7 +93,8 @@ filesys_open (const char *name)
   /* Original code. */
   //struct dir *dir = dir_open_root ();
   /* New codes. */
-  char *path_name = name;
+  char *path_name [100];
+  strlcpy (path_name, name, sizeof (name) + 1);
   char file_name [NAME_MAX + 1];
   struct dir *dir = parse_path (path_name, file_name);
   if (dir == NULL)
@@ -113,7 +115,8 @@ filesys_open (const char *name)
 bool
 filesys_remove (const char *name) 
 {
-  char *path_name = name;
+  char *path_name [100];
+  strlcpy (path_name, name, sizeof (name) + 1);
   char file_name [NAME_MAX + 1];
   struct dir *dir = parse_path (path_name, file_name);
 
@@ -216,8 +219,10 @@ parse_path (char *path_name, char *file_name)
 bool 
 filesys_create_dir (const char *name)
 {
+  char path_name [100];
+  strlcpy (path_name, name, sizeof (name) + 1);
   char file_name [NAME_MAX + 1];
-  struct dir *dir = parse_path (name, file_name);
+  struct dir *dir = parse_path (path_name, file_name);
 
   block_sector_t inode_sector;
   bool success = (dir != NULL
@@ -226,14 +231,17 @@ filesys_create_dir (const char *name)
                   && dir_add (dir, file_name, inode_sector));
 
   if (!success && inode_sector != 0)
+  {
     free_map_release (inode_sector, 1);
+    return false;
+  }
 
   struct inode *inode;
   if (success && dir_lookup (dir, file_name, &inode))
   {
     struct dir *dir_ = dir_open (inode);
     dir_add (dir_, ".", inode_get_inumber (inode));
-    dir_add (dir_, "..", inode_get_inumber (dir_get_inode (dir)));
+    dir_add (dir_, "..", inode_get_inumber (inode));
     dir_close (dir_);
   }
 

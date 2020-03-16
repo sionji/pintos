@@ -297,9 +297,11 @@ syscall_handler (struct intr_frame *f)
     case SYS_CHDIR :
       {
         char file_name [NAME_MAX + 1];
-        char *path_name;
+        char *name;
+        char path_name [100];
         syscall_get_args (f->esp, args, 1);
-        path_name = (char *) args [0];
+        name = (char *) args [0];
+        strlcpy (path_name, name, sizeof (name) + 1);
 
         struct dir *dir = parse_path (path_name, file_name);
         dir_close (thread_current ()->cur_dir);
