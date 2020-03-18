@@ -78,8 +78,8 @@ filesys_create (const char *name, off_t initial_size)
                   && dir_add (dir, file_name, inode_sector));
   if (!success && inode_sector != 0) 
     free_map_release (inode_sector, 1);
-  dir_close (dir);
 
+  dir_close (dir);
   return success;
 }
 
@@ -101,12 +101,12 @@ filesys_open (const char *name)
   struct dir *dir = parse_path (path_name, file_name);
   if (dir == NULL)
     return NULL;
-  struct inode *inode = NULL;
 
+  struct inode *inode = NULL;
   if (dir != NULL)
     dir_lookup (dir, file_name, &inode);
-  dir_close (dir);
 
+  dir_close (dir);
   return file_open (inode);
 }
 
@@ -135,13 +135,14 @@ filesys_remove (const char *name)
     /* In case of directory. */
     struct dir *cur_dir = dir_open (inode);
 
-    if (!dir_readdir (cur_dir, file_name))
+    if (!dir_readdir (cur_dir, file_name) && file_name != NULL)
       success = dir_remove (dir, file_name);
   }
   else
   {
     /* In case of file. */
-    success = dir_remove (dir, file_name);
+    if (file_name != NULL)
+      success = dir_remove (dir, file_name);
   }
 
   dir_close (dir); 
@@ -181,7 +182,7 @@ parse_path (char *path_name, char *file_name)
     return NULL;
 
   /* Store directory info according to absolute/related path of PATH_NAME. */
-  if (strcmp (path_name, "/") == 0)
+  if (path_name [0] == "/")
     dir = dir_open_root ();
   else
     dir = dir_reopen (thread_current ()->cur_dir);
@@ -194,7 +195,11 @@ parse_path (char *path_name, char *file_name)
   {
     /* Search for the file named token in dir and store the info of inode. */
     struct inode *inode = NULL;
-    dir_lookup (dir, token, &inode);
+    if (!dir_lookup (dir, token, &inode))
+    {
+      dir_close (dir);
+      return NULL;
+    }
 
     /* If inode is file, NULL. */
     if (!inode_is_dir (inode))
@@ -216,6 +221,7 @@ parse_path (char *path_name, char *file_name)
 
   /* Save token file name to file_name. */
   strlcpy (file_name, token, strlen (token) + 1);
+
   /* Return dir info. */
   return dir;
 }
@@ -234,9 +240,6 @@ filesys_create_dir (const char *name)
                   && free_map_allocate (1, &inode_sector)
                   && dir_create (inode_sector, 16)
                   && dir_add (dir, file_name, inode_sector));
-
-  if (!success && inode_sector != 0)
-    free_map_release (inode_sector, 1);
 
   struct inode *inode;
   if (success && dir_lookup (dir, file_name, &inode))
