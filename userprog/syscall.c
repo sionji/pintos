@@ -304,9 +304,16 @@ syscall_handler (struct intr_frame *f)
         char path_name [PATH_LENGTH];
         strlcpy (path_name, name, strlen (name) + 1);
 
+        struct inode *inode = NULL;
         struct dir *dir = parse_path (path_name, file_name);
-        dir_close (thread_current ()->cur_dir);
-        thread_current ()->cur_dir = dir;
+        if (dir != NULL)
+        {
+          if (dir_lookup (dir, file_name, &inode))
+          {
+            dir_close (thread_current ()->cur_dir);
+            thread_current ()->cur_dir = dir_open (inode);
+          }
+        }
 
         f->eax = true;
         break;
@@ -416,6 +423,7 @@ syscall_write (int fd, void *buffer, unsigned size)
 	struct file *file;
 	file = process_get_file (fd);
   lock_acquire (&filesys_lock);
+
 	if (fd == 1)
 	{
 		putbuf(buffer, size);
@@ -423,8 +431,11 @@ syscall_write (int fd, void *buffer, unsigned size)
 	}
 	else if (file == NULL || fd == 0)
 		retval = 0;
-  else
+  /* Make sure that file is not directory. */
+  else if (!inode_is_dir (file_get_inode (file)))
 		retval = file_write (file, buffer, size);
+  else
+    retval = -1;
  	lock_release (&filesys_lock);
   return retval;
 }

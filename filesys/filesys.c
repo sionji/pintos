@@ -127,9 +127,10 @@ filesys_remove (const char *name)
 
   /* Find inode. */
   struct inode *inode;
-  dir_lookup (dir, file_name, &inode);
+  if (dir != NULL)
+    dir_lookup (dir, file_name, &inode);
 
-  /* Check is_dir. */
+  /* Check file is directory. */
   if (inode_is_dir (inode))
   {
     /* In case of directory. */
@@ -182,7 +183,9 @@ parse_path (char *path_name, char *file_name)
     return NULL;
 
   /* Store directory info according to absolute/related path of PATH_NAME. */
-  if (path_name [0] == "/")
+  if (strcmp (path_name, "/") == 0)
+    return dir_open_root ();
+  else if (path_name [0] == "/")
     dir = dir_open_root ();
   else
     dir = dir_reopen (thread_current ()->cur_dir);
@@ -240,6 +243,8 @@ filesys_create_dir (const char *name)
                   && free_map_allocate (1, &inode_sector)
                   && dir_create (inode_sector, 16)
                   && dir_add (dir, file_name, inode_sector));
+  if (!success && inode_sector != 0) 
+    free_map_release (inode_sector, 1);
 
   struct inode *inode;
   if (success && dir_lookup (dir, file_name, &inode))
