@@ -5,6 +5,7 @@
 #include "filesys/filesys.h"
 #include "filesys/inode.h"
 #include "threads/malloc.h"
+#include "threads/thread.h"
 
 /* A directory. */
 struct dir 
@@ -240,15 +241,16 @@ dir_readdir (struct dir *dir, char name[NAME_MAX + 1])
 }
 
 bool
-dir_is_removable (struct dir *dir, char *name)
+dir_is_removable (struct dir *dir, char *name, struct inode *target_inode)
 {
   ASSERT (dir != NULL);
   
   bool removable = true;
   struct inode *inode;
-  if (dir_lookup (dir, name, &inode))
-    removable = false;
 
+  if (dir_lookup (dir, name, &inode))
+    if (inode == target_inode)
+      removable = false;
 
   return removable;
 }

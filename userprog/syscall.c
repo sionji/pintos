@@ -302,7 +302,7 @@ syscall_handler (struct intr_frame *f)
         syscall_get_args (f->esp, args, 1);
         name = (char *) args [0];
         int PATH_LENGTH = strlen (name) + 1;
-        char path_name [PATH_LENGTH];
+        char path_name [512];
         strlcpy (path_name, name, strlen (name) + 1);
 
         bool success = false;

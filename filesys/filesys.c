@@ -65,9 +65,8 @@ filesys_create (const char *name, off_t initial_size)
   /* Original code. */
   //struct dir *dir = dir_open_root ();
   /* New codes. */
-  int PATH_LENGTH = strlen (name) + 1;
-  char path_name [PATH_LENGTH];
-  strlcpy (path_name, name, PATH_LENGTH);
+  char path_name [512];
+  strlcpy (path_name, name, strlen (name) + 1);
   char file_name [NAME_MAX + 1];
   struct dir *dir = parse_path (path_name, file_name);
   /* PARSE_PATH destroy char string to NULL, maybe needs using copy. */
@@ -94,9 +93,8 @@ filesys_open (const char *name)
   /* Original code. */
   //struct dir *dir = dir_open_root ();
   /* New codes. */
-  int PATH_LENGTH = strlen (name) + 1;
-  char path_name [PATH_LENGTH];
-  strlcpy (path_name, name, PATH_LENGTH);
+  char path_name [512];
+  strlcpy (path_name, name, strlen (name) + 1);
   char file_name [NAME_MAX + 1];
   struct dir *dir = parse_path (path_name, file_name);
   if (dir == NULL)
@@ -118,7 +116,7 @@ bool
 filesys_remove (const char *name) 
 {
   int PATH_LENGTH = strlen (name) + 1;
-  char path_name [PATH_LENGTH];
+  char path_name [512];
   strlcpy (path_name, name, PATH_LENGTH);
   char file_name [NAME_MAX + 1];
   struct dir *dir = parse_path (path_name, file_name);
@@ -237,7 +235,7 @@ bool
 filesys_create_dir (const char *name)
 {
   int PATH_LENGTH = strlen (name) + 1;
-  char path_name [PATH_LENGTH];
+  char path_name [512];
   strlcpy (path_name, name, PATH_LENGTH);
   char file_name [NAME_MAX + 1];
   struct dir *dir = parse_path (path_name, file_name);
