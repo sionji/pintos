@@ -134,9 +134,9 @@ filesys_remove (const char *name)
   if (inode_is_dir (inode))
   {
     /* In case of directory. */
-    struct dir *cur_dir = dir_open (inode);
+    struct dir *target_dir = dir_open (inode);
 
-    if (!dir_readdir (cur_dir, file_name) && file_name != NULL)
+    if (file_name != NULL && !dir_readdir (target_dir, file_name))
       success = dir_remove (dir, file_name);
   }
   else
@@ -175,7 +175,7 @@ do_format (void)
 struct dir *
 parse_path (char *path_name, char *file_name)
 {
-  struct dir *dir;
+  struct dir *dir = NULL;
 
   if (path_name == NULL || file_name == NULL)
     return NULL;
@@ -184,7 +184,11 @@ parse_path (char *path_name, char *file_name)
 
   /* Store directory info according to absolute/related path of PATH_NAME. */
   if (strcmp (path_name, "/") == 0)
+  {
+    /* File name is needed to open root directory. */
+    strlcpy (file_name, ".", 2);
     return dir_open_root ();
+  }
   else if (path_name [0] == "/")
     dir = dir_open_root ();
   else
@@ -243,7 +247,7 @@ filesys_create_dir (const char *name)
                   && free_map_allocate (1, &inode_sector)
                   && dir_create (inode_sector, 16)
                   && dir_add (dir, file_name, inode_sector));
-  if (!success && inode_sector != 0) 
+  if (!success && inode_sector != 0 && dir != NULL) 
     free_map_release (inode_sector, 1);
 
   struct inode *inode;

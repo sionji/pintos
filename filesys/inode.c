@@ -785,3 +785,17 @@ inode_is_dir (const struct inode *inode)
   free (disk_inode);
   return result;
 }
+
+bool
+inode_is_opened (struct inode *inode)
+{
+  struct list_elem *e;
+  for (e = list_begin (&open_inodes); e != list_end (&open_inodes); e = list_next (e))
+  {
+    struct inode *cur_inode = list_entry (e, struct inode, elem);
+    if (inode == cur_inode)
+      return true;
+  }
+
+  return false;
+}

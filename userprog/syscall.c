@@ -14,6 +14,7 @@
 #include <stdbool.h>
 #include <debug.h>
 #include <syscall-nr.h>
+#include <string.h>
 #include "threads/interrupt.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
@@ -304,6 +305,7 @@ syscall_handler (struct intr_frame *f)
         char path_name [PATH_LENGTH];
         strlcpy (path_name, name, strlen (name) + 1);
 
+        bool success = false;
         struct inode *inode = NULL;
         struct dir *dir = parse_path (path_name, file_name);
         if (dir != NULL)
@@ -312,10 +314,11 @@ syscall_handler (struct intr_frame *f)
           {
             dir_close (thread_current ()->cur_dir);
             thread_current ()->cur_dir = dir_open (inode);
+            success = true;
           }
         }
 
-        f->eax = true;
+        f->eax = success;
         break;
       }
 
