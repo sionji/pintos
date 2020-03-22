@@ -799,3 +799,9 @@ inode_is_opened (struct inode *inode)
 
   return false;
 }
+
+bool
+inode_is_removed (struct inode *inode)
+{
+  return inode->removed;
+}

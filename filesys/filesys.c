@@ -71,7 +71,7 @@ filesys_create (const char *name, off_t initial_size)
   struct dir *dir = parse_path (path_name, file_name);
   /* PARSE_PATH destroy char string to NULL, maybe needs using copy. */
 
-  bool success = (dir != NULL
+  bool success = (dir != NULL && !inode_is_removed (dir_get_inode (thread_current ()->cur_dir))
                   && free_map_allocate (1, &inode_sector)
                   && inode_create (inode_sector, initial_size, 0)
                   && dir_add (dir, file_name, inode_sector));
@@ -105,7 +105,12 @@ filesys_open (const char *name)
     dir_lookup (dir, file_name, &inode);
 
   dir_close (dir);
-  return file_open (inode);
+
+  if (inode == NULL || inode_is_removed (inode) || 
+      inode_is_removed (dir_get_inode (thread_current ()->cur_dir)))
+    return NULL;
+  else
+    return file_open (inode);
 }
 
 /* Deletes the file named NAME.
@@ -145,7 +150,6 @@ filesys_remove (const char *name)
   }
 
   dir_close (dir); 
-
   return success;
 }
 
@@ -187,7 +191,9 @@ parse_path (char *path_name, char *file_name)
     strlcpy (file_name, ".", 2);
     return dir_open_root ();
   }
-  else if (path_name [0] == "/")
+
+  if (path_name [0] == '/')
+    /* case that path_name is start with "/", also has subdirectory name.*/
     dir = dir_open_root ();
   else
     dir = dir_reopen (thread_current ()->cur_dir);
@@ -195,7 +201,7 @@ parse_path (char *path_name, char *file_name)
   char *token, *nextToken, *savePtr;
   token = strtok_r (path_name, "/", &savePtr);
   nextToken = strtok_r (NULL, "/", &savePtr);
-  
+
   while (token != NULL && nextToken != NULL)
   {
     /* Search for the file named token in dir and store the info of inode. */
