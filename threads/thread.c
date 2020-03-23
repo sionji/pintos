@@ -1,4 +1,5 @@
 #include "threads/thread.h"
+#include "devices/timer.h"
 #include <debug.h>
 #include <stddef.h>
 #include <random.h>
@@ -105,6 +106,9 @@ thread_init (void)
   init_thread (initial_thread, "main", PRI_DEFAULT);
   initial_thread->status = THREAD_RUNNING;
   initial_thread->tid = allocate_tid ();
+
+  /* Added code for subdirectory. */
+  initial_thread->cur_dir = NULL;
 }
 
 /* Starts preemptive thread scheduling by enabling interrupts.
@@ -194,6 +198,13 @@ thread_create (const char *name, int priority,
   /* Initialize thread. */
   init_thread (t, name, priority);
   tid = t->tid = allocate_tid ();
+
+  /* Added codes for subdirectory. */
+  if (thread_current ()->cur_dir != NULL)
+  {
+    /* Re-open child thread work directory to parent thread work directory. */
+    t->cur_dir = dir_reopen (thread_current ()->cur_dir);
+  }
 
   /* Added codes for syscall process hierarchy. */
 	sema_init (&t->sema_exit, 0);

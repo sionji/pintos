@@ -232,6 +232,9 @@ process_exit (void)
 	syscall_munmap (CLOSE_ALL);
 	vm_destroy (&cur->vm);
 
+  /* Close current thread working directory. */
+  dir_close (cur->cur_dir);
+
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
   pd = cur->pagedir;

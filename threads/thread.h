@@ -133,6 +133,9 @@ struct thread
 		struct list mmap_list;
 		int next_mapid;                     /* Next mapid number. */
 
+    /* Added codes for Subdirectory. */
+    struct dir *cur_dir;
+
     /* Owned by thread.c. */
     unsigned magic;                     /* Detects stack overflow. */
   };

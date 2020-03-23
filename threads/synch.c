@@ -351,7 +351,7 @@ cond_wait (struct condition *cond, struct lock *lock)
 /* New added codes. */
 bool
 cond_less_func (const struct list_elem *a,
-		const struct list_elem *b, void *aux)
+		const struct list_elem *b, void *aux UNUSED)
 {
 	struct semaphore_elem *elem_a = list_entry (a, struct semaphore_elem, elem);
 	struct semaphore_elem *elem_b = list_entry (b, struct semaphore_elem, elem);
