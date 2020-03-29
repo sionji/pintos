@@ -1,4 +1,5 @@
 #include "threads/thread.h"
+#include "threads/fixed_point.h"
 #include <debug.h>
 #include <stddef.h>
 #include <random.h>
@@ -19,6 +20,12 @@
    Used to detect stack overflow.  See the big comment at the top
    of thread.h for details. */
 #define THREAD_MAGIC 0xcd6abf4b
+
+#define NICE_DEFAULT 0
+#define RECENT_CPU_DEFAULT 0
+#define LOAD_AVG_DEFAULT 0
+
+int load_avg;
 
 /* My new code. List of processes in THREAD_SLEEP state, that is,
 	 processes that are sleeping and blocked.*/
@@ -116,6 +123,8 @@ thread_start (void)
   struct semaphore idle_started;
   sema_init (&idle_started, 0);
   thread_create ("idle", PRI_MIN, idle, &idle_started);
+	
+	load_avg = LOAD_AVG_DEFAULT;
 
   /* Start preemptive thread scheduling. */
   intr_enable ();
@@ -465,6 +474,9 @@ thread_foreach (thread_action_func *func, void *aux)
 void
 thread_set_priority (int new_priority) 
 {
+	if (thread_mlfqs)
+		return;
+
   thread_current ()->priority = new_priority;
 
 	/* Check the donate option. */
@@ -488,34 +500,119 @@ thread_get_priority (void)
 
 /* Sets the current thread's nice value to NICE. */
 void
-thread_set_nice (int nice UNUSED) 
+thread_set_nice (int nice) 
 {
-  /* Not yet implemented. */
+	enum intr_level old_level = intr_disable ();
+	thread_current ()->nice = nice;
+  intr_set_level (old_level);
 }
 
 /* Returns the current thread's nice value. */
 int
 thread_get_nice (void) 
 {
-  /* Not yet implemented. */
-  return 0;
+	enum intr_level old_level = intr_disable ();
+	int nice = thread_current ()->nice;
+  intr_set_level (old_level);
+
+  return nice;
 }
 
 /* Returns 100 times the system load average. */
 int
 thread_get_load_avg (void) 
 {
-  /* Not yet implemented. */
-  return 0;
+	enum intr_level old_level = intr_disable ();
+	int retval = fp_to_int_round (mult_mixed (load_avg, 100));
+  intr_set_level (old_level);
+
+  return retval;
 }
 
 /* Returns 100 times the current thread's recent_cpu value. */
 int
 thread_get_recent_cpu (void) 
 {
-  /* Not yet implemented. */
-  return 0;
+	enum intr_level old_level = intr_disable ();
+	int retval = fp_to_int_round (mult_mixed (thread_current ()->recent_cpu, 100));
+  intr_set_level (old_level);
+
+  return retval;
 }
+
+void 
+mlfqs_priority (struct thread *t)
+{
+	if (t == idle_thread)
+		return;
+
+	int priority = int_to_fp (PRI_MAX);
+	int priority2 = div_mixed (t->recent_cpu, 4);
+	int priority3 = mult_mixed (int_to_fp (t->nice), 2);
+	priority = sub_fp (priority, priority2);
+	priority = sub_fp (priority, priority3);
+	t->priority = priority;
+}
+
+void 
+mlfqs_recent_cpu (struct thread *t)
+{
+	if (t == idle_thread)
+		return;
+
+	int a = mult_mixed (load_avg, 2);
+	int b = add_mixed (mult_mixed (load_avg, 2), 1);
+	int c = t->recent_cpu;
+	int d = int_to_fp (t->nice);
+	int retval = add_fp (mult_fp (div_fp (a, b), c), d);
+	t->recent_cpu = retval;
+}
+
+void
+mlfqs_load_avg (void)
+{
+	int a = div_fp (int_to_fp (59), int_to_fp (60));
+	int b = load_avg;
+	int c = div_fp (int_to_fp (1), int_to_fp (60));
+
+	int d = 0;
+	struct list_elme *e;
+	for (e = list_begin (&ready_list); e != list_end (&ready_list);
+			 e = list_next (e))
+		d++;
+	if (thread_current () == idle_thread)
+		d -= 1;
+
+	d = int_to_fp (d + 1);
+
+	load_avg = add_fp (mult_fp (a, b), mult_fp (c, d));
+
+	if (load_avg < 0)
+		load_avg = 0;
+}
+
+void
+mlfqs_increment (void)
+{
+	if (thread_current () == idle_thread)
+		return;
+	thread_current ()->recent_cpu = add_mixed (thread_current ()->recent_cpu, 1);
+}
+
+void
+mlfqs_recalc (void)
+{
+	struct list_elem *e;
+	mlfqs_load_avg ();
+	for (e = list_begin (&all_list); e != list_end (&all_list);
+			 e = list_next (e))
+	{
+		struct thread *t = list_entry (e, struct thread, allelem);
+		mlfqs_recent_cpu (t);
+		mlfqs_priority (t);
+	}
+}
+
 
 /* Idle thread.  Executes when no other thread is ready to run.
 
@@ -601,6 +698,9 @@ init_thread (struct thread *t, const char *name, int priority)
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
+
+	t->nice = NICE_DEFAULT;
+	t->recent_cpu = RECENT_CPU_DEFAULT;
 
 	/* Added codes from priority donation. */
 	t->old_priority = priority;

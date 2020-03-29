@@ -205,7 +205,7 @@ lock_acquire (struct lock *lock)
   ASSERT (!intr_context ());
   ASSERT (!lock_held_by_current_thread (lock));
 
-	if (lock->holder != NULL)
+	if (lock->holder != NULL && !thread_mlfqs)
 	{
 		t->lock_add = lock;
 		list_insert_ordered (&lock->holder->donation, &t->donate_elem,
@@ -251,8 +251,11 @@ lock_release (struct lock *lock)
   lock->holder = NULL;
 
 	/* Added codes from priority donation. */
-	remove_donation_list (lock);
-	thread_priority_refresh ();
+	if (!thread_mlfqs)
+	{
+    remove_donation_list (lock);
+    thread_priority_refresh ();
+	}
 
   sema_up (&lock->semaphore);
 }
