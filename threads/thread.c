@@ -819,7 +819,7 @@ schedule_sleep (void)
 	while (l != list_end (&sleep_list)) 
 	{
 		struct thread *t = list_entry (l, struct thread, elem);
-		if ( (t->wait_cnt) < timer_elapsed(t->wait_start) )
+		if ( (t->wait_cnt) <= timer_elapsed(t->wait_start) )
 		{
 			l = list_remove (l);
 			thread_unblock (t);
