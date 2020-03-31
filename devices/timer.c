@@ -99,7 +99,8 @@ timer_sleep (int64_t ticks)
     thread_yield ();
 	*/
 	
-	thread_sleep (ticks, start);
+	if (timer_elapsed (start) < ticks)
+  	thread_sleep (ticks, start);
 
 	return;
 
@@ -181,6 +182,8 @@ timer_interrupt (struct intr_frame *args UNUSED)
 {
   ticks++;
   thread_tick ();
+
+	schedule_sleep ();
 
 	if (thread_mlfqs)
 	{

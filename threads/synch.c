@@ -271,12 +271,14 @@ remove_donation_list (struct lock *lock)
 	if (list_empty (&t->donation))
 		return;
 
-	for (e = list_begin (&t->donation); e != list_end (&t->donation);
-			 e = list_next (e))
+	e = list_begin (&t->donation);
+	while (e != list_end (&t->donation))
 	{
 		struct thread *f = list_entry (e, struct thread, donate_elem);
 		if (lock == f->lock_add)
-      list_remove (&f->donate_elem);
+			e = list_remove (e);
+		else
+			e = list_next (e);
 	}
 
 	return;

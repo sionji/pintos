@@ -802,7 +802,7 @@ schedule (void)
   ASSERT (cur->status != THREAD_RUNNING);
   ASSERT (is_thread (next));
 
-	schedule_sleep();
+	//schedule_sleep();
 
   if (cur != next)
     prev = switch_threads (cur, next);
