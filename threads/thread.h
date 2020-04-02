@@ -90,21 +90,21 @@ struct thread
     int priority;                       /* Priority. */
     struct list_elem allelem;           /* List element for all threads list. */
 
-		/* Used at alarm-clock. */ 
-		int64_t wait_cnt;										/* Sleep-list wait counter variable */		
-		int64_t wait_start;
+    /* Used at alarm-clock. */ 
+    int64_t wait_cnt;                   /* Sleep-list wait counter variable */
+    int64_t wait_start;
 
-		int nice;
-		int recent_cpu;
+    int nice;
+    int recent_cpu;
 
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
 
-		/* Used in priority donation. */
-		int old_priority;
-		struct list donation;
-		struct list_elem donate_elem;
-		struct lock *lock_add;
+    /* Used in priority donation. */
+    int old_priority;
+    struct list donation;
+    struct list_elem donate_elem;
+    struct lock *lock_add;
 
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
