@@ -1,5 +1,6 @@
 #include "threads/thread.h"
 #include "threads/fixed_point.h"
+#include "devices/timer.h"
 #include <debug.h>
 #include <stddef.h>
 #include <random.h>
@@ -105,6 +106,8 @@ thread_init (void)
   lock_init (&tid_lock);
   list_init (&ready_list);
   list_init (&all_list);
+
+  /* Initialize sleep_list. */
   list_init (&sleep_list);
 
   /* Set up a thread structure for the running thread. */
@@ -124,6 +127,7 @@ thread_start (void)
   sema_init (&idle_started, 0);
   thread_create ("idle", PRI_MIN, idle, &idle_started);
 	
+  /* Set load_avg as default value. */
   load_avg = LOAD_AVG_DEFAULT;
 
   /* Start preemptive thread scheduling. */
@@ -153,7 +157,7 @@ thread_tick (void)
 
   /* Enforce preemption. */
   if ((t->priority) < (list_entry(e, struct thread, elem)->priority))
-    intr_yield_on_return ();                         /* Added code. */
+    intr_yield_on_return ();                         
 	
   if (++thread_ticks >= TIME_SLICE)
     intr_yield_on_return ();
@@ -228,6 +232,9 @@ thread_create (const char *name, int priority,
 
   /* Add to run queue. */
   thread_unblock (t);
+
+  /* Check priority between new thread and current thread.
+     If new thread has higher priority, schedule() will be called. */
   thread_priority_check ();
 
   return tid;
@@ -268,6 +275,8 @@ thread_unblock (struct thread *t)
   ASSERT (t->status == THREAD_BLOCKED);
   /* Original code.
 	list_push_back (&ready_list, &t->elem); */
+
+  /* Insert threads in order to priority. */
   list_insert_ordered (&ready_list, &t->elem, thread_less_func, 0);
 
   t->status = THREAD_READY;
@@ -338,8 +347,10 @@ thread_yield (void)
   
   ASSERT (!intr_context ());
 
+  /* Disable interrupt. */
   old_level = intr_disable ();
 
+  /* If it is not idle_thread, insert thread to list in order to priority. */
   if (cur != idle_thread) 
     list_insert_ordered (&ready_list, &cur->elem, thread_less_func, 0);
 
@@ -349,14 +360,14 @@ thread_yield (void)
 }
 
 /* Added codes. It looks different compared to list_less_func at
- .../src/lib/kernel/list.h . The reason why the inequality direction is
+ ../src/lib/kernel/list.h . The reason why the inequality direction is
  different is that the difference between PRIORITY and LIST_SORT().
  LARGER PRIORITY thread has priority. However, LIST_SORT() sorts
  in order to LESS integer value. That's why the inequality direction was
  inversed. */
 bool
 thread_less_func (const struct list_elem *a, 
-		const struct list_elem *b, void *aux)
+		const struct list_elem *b, void *aux UNUSED)
 {
   return ( (list_entry(a, struct thread, elem)->priority)
            > (list_entry(b, struct thread, elem)->priority)? true : false );
@@ -370,12 +381,15 @@ thread_sleep (int64_t ticks, int64_t start)
   struct thread *cur = thread_current ();
   enum intr_level old_level;
 
+  /* Disable interrupt. */
   old_level = intr_disable ();
 
   if (cur != idle_thread)
   {
+    /* Save time information to thread structure. */
     cur->wait_cnt = ticks;
     cur->wait_start = start;
+    /* Push to sleep list. */
     list_push_back (&sleep_list, &cur->elem);
     thread_block ();
   }
@@ -394,6 +408,7 @@ thread_priority_check (void)
 
   struct list_elem *e = list_begin(&ready_list);
  
+  /* Check beginning element of list because ready_list is already sorted. */
   if ((thread_current ()->priority) < list_entry(e, struct thread, elem)->priority)
     thread_yield();
 
@@ -414,12 +429,14 @@ thread_priority_donation (struct thread *t)
     t->lock_add->holder->priority = t->priority;
 
   /* Recurrsive call. */
+  /* If there is no more lock address, it finishes recursive loop. */
   thread_priority_donation (t->lock_add->holder);
 
   return;
 }
 
-/* Added codes from priority donation. Check the current thread's priority. */
+/* Added codes for priority donation. Check the current thread's priority. */
+/* It makes current thread's priority to largest one of it's doner threads. */
 /* This function should be called when priority is changed. For example,
    when lock is released, call function try to retrieve original priority. */
 void 
@@ -437,7 +454,7 @@ thread_priority_refresh (void)
   }
   else
   {
-    /* If exist, recover highest priority. */
+    /* If exist, recover highest priority from donors. */
   	for (e = list_begin (&t->donation); e != list_end (&t->donation);
   			 e = list_next (e))
     {
@@ -445,6 +462,8 @@ thread_priority_refresh (void)
       if (f->priority > max)
         max = f->priority;
     }
+
+    /* Change maximum priority to current thread. */
     t->priority = max;
   }
 
@@ -475,6 +494,7 @@ thread_set_priority (int new_priority)
   if (thread_mlfqs)
     return;
 
+  /* Set new priority. */
   thread_current ()->priority = new_priority;
 
   /* Check the donate option. */
@@ -579,7 +599,7 @@ mlfqs_load_avg (void)
   int c = div_fp (int_to_fp (1), int_to_fp (60));
   int d = 0;
 
-  struct list_elme *e;
+  struct list_elem *e;
   for (e = list_begin (&ready_list); e != list_end (&ready_list);
        e = list_next (e))
     d++;
@@ -595,7 +615,7 @@ mlfqs_load_avg (void)
     load_avg = 0;
 }
 
-/* Increase recent cpu for mlfqs option. */
+/* Increase recent cpu by 1 for mlfqs option. */
 void
 mlfqs_increment (void)
 {
@@ -604,7 +624,7 @@ mlfqs_increment (void)
   thread_current ()->recent_cpu = add_mixed (thread_current ()->recent_cpu, 1);
 }
 
-/* Re-calculate recent */
+/* Re-calculate recent_cpu and priority of all threads. */
 void
 mlfqs_recalc (void)
 {
@@ -709,6 +729,10 @@ init_thread (struct thread *t, const char *name, int priority)
   t->recent_cpu = RECENT_CPU_DEFAULT;
 
   /* Added codes from priority donation. */
+  /* It needs to remember original priority because 
+     thread may be donated by other thread.
+     When thread releases lock, we should retrieve 
+     thread's original priority. */
   t->old_priority = priority;
   list_init (&t->donation);
   t->lock_add = NULL;
@@ -808,8 +832,6 @@ schedule (void)
   ASSERT (cur->status != THREAD_RUNNING);
   ASSERT (is_thread (next));
 
-	//schedule_sleep();
-
   if (cur != next)
     prev = switch_threads (cur, next);
   thread_schedule_tail (prev);
@@ -822,9 +844,13 @@ schedule_sleep (void)
 {
   struct list_elem *l = list_begin (&sleep_list);
 	
+  /* Traverse all of the sleep_list and find the threads 
+     which needs wake-up. */
+  /* If you find thread, unblock it and remove from sleep_list. */
   while (l != list_end (&sleep_list)) 
   {
     struct thread *t = list_entry (l, struct thread, elem);
+    /* Calculate time. */
     if ( (t->wait_cnt) <= timer_elapsed(t->wait_start) )
     {
       l = list_remove (l);

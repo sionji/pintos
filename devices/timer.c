@@ -93,12 +93,14 @@ timer_sleep (int64_t ticks)
 
   /* Original codes, which needs interrupt. */
   /*
-	ASSERT (intr_get_level () == INTR_ON);
+  ASSERT (intr_get_level () == INTR_ON);
   
-	while (timer_elapsed (start) < ticks) 
+  while (timer_elapsed (start) < ticks) 
     thread_yield ();
   */
 	
+  /* To avoid busy-waiting, call thread_sleep() instead of while loop. 
+     This function blocks current thread and calls context switch. */
   if (timer_elapsed (start) < ticks)
     thread_sleep (ticks, start);
 
@@ -182,15 +184,20 @@ timer_interrupt (struct intr_frame *args UNUSED)
   ticks++;
   thread_tick ();
 
+  /* Check sleep_list periodically to awake sleeping thread. */
   schedule_sleep ();
 
+  /* If mlfqs is running, increase and check recent_cpu and priority. */
   if (thread_mlfqs)
   {
+    /* Increase recent_cpu by 1 in every clock tick. */
     mlfqs_increment ();
 
+    /* Calc priority in every 4ticks. */
     if (ticks % 4 == 0)
       mlfqs_priority (thread_current ());
 
+    /* Re-calc recent_cpu and priority in every second. */
     if (ticks % 100 == 0)
       mlfqs_recalc ();
   }
