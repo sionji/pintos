@@ -221,9 +221,10 @@ process_exit (void)
 
   /* Added codes for file descriptor. Close every opened files 
 		 and free file_descriptor_table memory. */
-	for (i = cur->next_fd - 1; i > 1; i--)
+	for (i = 2; i < 128; i++)
 	{
-	  process_close_file (i);
+    if (cur->fdt[i] != NULL)
+      process_close_file (i);
 	}
 	//palloc_free_page (cur->fdt);
 	free (cur->fdt);
@@ -285,10 +286,24 @@ process_add_file (struct file *f)
 	if (f == NULL)
 		return -1;
 
+  for (retval = 2; retval < 128; retval++)
+  {
+    if (t->fdt[retval] == NULL)
+    {
+      t->fdt[retval] = f;
+      t->next_fd++;
+      return retval;
+    }
+  }
+
+  return -1;
+
+  /*
 	retval = t->next_fd;
 	t->fdt[t->next_fd] = f;
 	t->next_fd++;
 	return retval;
+  */
 }
 
 struct file * 
@@ -296,10 +311,16 @@ process_get_file (int fd)
 {
 	struct thread *t = thread_current ();
 	
+  if (fd > 1)
+    return t->fdt[fd];
+  else
+    return NULL;
+  /*
 	if (t->next_fd > fd && fd > 1)
 		return t->fdt[fd];
 	else
 		return NULL;
+    */
 }
 
 void

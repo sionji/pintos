@@ -220,6 +220,10 @@ thread_create (const char *name, int priority,
 	t->fdt = (struct file **) malloc (sizeof (struct file *) * 128);
 	t->next_fd = 2;
 
+  int i = 2;
+  for (i = 2; i < 128; i++)
+    t->fdt[i] = NULL;
+
   /* Prepare thread for first run by initializing its stack.
      Do this atomically so intermediate values for the 'stack' 
      member cannot be observed. */
