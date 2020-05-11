@@ -30,11 +30,11 @@ void arg_stack_push (char **parse, int argc, void **esp);
 tid_t
 process_execute (const char *file_name) 
 {
-	struct list_elem *e;
-	struct thread *t;
-	struct thread *cur = thread_current (); /* Added code. */
-	char file_name_[LOADER_ARGS_LEN / 2 + 1];
-	char *token, *save_ptr;			/* Added code. */
+  struct list_elem *e;
+  struct thread *t;
+  struct thread *cur = thread_current (); /* Added code. */
+  char file_name_[LOADER_ARGS_LEN / 2 + 1];
+  char *token, *save_ptr;     /* Added code. */
   char *fn_copy;
   tid_t tid;
 
@@ -45,13 +45,13 @@ process_execute (const char *file_name)
     return TID_ERROR;
   strlcpy (fn_copy, file_name, PGSIZE);
 
-	/* Added codes for argument parsing. */
-	strlcpy (file_name_, file_name, strlen (file_name) + 1);
-	token = strtok_r (file_name_, " ", &save_ptr);
+  /* Added codes for argument parsing. */
+  strlcpy (file_name_, file_name, strlen (file_name) + 1);
+  token = strtok_r (file_name_, " ", &save_ptr);
 
   /* Create a new thread to execute FILE_NAME. */
   /* Old code.
-		 tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy); */
+     tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy); */
   tid = thread_create (token, PRI_DEFAULT, start_process, fn_copy);
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy); 
@@ -68,24 +68,24 @@ start_process (void *file_name_)
   struct intr_frame if_;
   bool success;
   
-	char *token, *save_ptr;			/* Added codes. */
-	char *parse[LOADER_ARGS_LEN / 2 + 1];
-	int argc = 0;
+  char *token, *save_ptr;     /* Added codes. */
+  char *parse[LOADER_ARGS_LEN / 2 + 1];
+  int argc = 0;
 
-	int i = 0; /* Debugging code */
-	
-	/* Added codes from argument parsing. Parse a name of file. */
-	for (token = strtok_r (file_name, " ", &save_ptr);
-			 token != NULL; token = strtok_r (NULL, " ", &save_ptr))
-	{
-		parse[argc] = token;
-		argc++;
-	}
+  int i = 0; /* Debugging code */
+  
+  /* Added codes from argument parsing. Parse a name of file. */
+  for (token = strtok_r (file_name, " ", &save_ptr);
+       token != NULL; token = strtok_r (NULL, " ", &save_ptr))
+  {
+    parse[argc] = token;
+    argc++;
+  }
 
-	/* Codes for debugging.  
-	for (i = 0; i < argc ; i++)
-		printf ("parse[%d] : %s \n", i, parse[i]);
-	*/	
+  /* Codes for debugging.  
+  for (i = 0; i < argc ; i++)
+    printf ("parse[%d] : %s \n", i, parse[i]);
+  */  
 
   /* Initialize interrupt frame and load executable. */
   memset (&if_, 0, sizeof if_);
@@ -93,30 +93,30 @@ start_process (void *file_name_)
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
   /* Old code.
-		 success = load (file_name, &if_.eip, &if_.esp); */
+     success = load (file_name, &if_.eip, &if_.esp); */
   success = load (parse[0], &if_.eip, &if_.esp);
   
   /* Added code for argument stack push and syscall hierarchy. */
-	if (success)
-	{
-		//printf ("load success...\n");
-		thread_current ()->flag_load = 1;
+  if (success)
+  {
+    //printf ("load success...\n");
+    thread_current ()->flag_load = 1;
     sema_up (&thread_current ()->sema_load);
-		/* Stack push must be executed before free its page. */
-		arg_stack_push (&parse, argc, &if_.esp); 
-	}
+    /* Stack push must be executed before calling palloc_free_page(). */
+    arg_stack_push (&parse, argc, &if_.esp); 
+  }
 
   /* If load failed, quit. */
-  palloc_free_page (file_name);
+  palloc_free_page (file_name_);
   if (!success) 
-	{
-		thread_current ()->flag_load = -1;
+  {
+    thread_current ()->flag_load = -1;
     sema_up (&thread_current ()->sema_load);
     syscall_exit (-1);
-	}
+  }
 
-	/* Added code for debugging. */
-	//hex_dump (if_.esp, if_.esp, PHYS_BASE - if_.esp, true);
+  /* Added code for debugging. */
+  //hex_dump (if_.esp, if_.esp, PHYS_BASE - if_.esp, true);
 
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
@@ -132,52 +132,52 @@ start_process (void *file_name_)
 void 
 arg_stack_push (char **parse, int argc, void **esp_)
 {
-	short total = 0;
-	short remainder;
-	int chr_len = 0;
-	int num;
-	char **argv[argc+1];
-	char **esp = (char **)esp_;
+  short total = 0;
+  short remainder;
+  int chr_len = 0;
+  int num;
+  char **argv[argc+1];
+  char **esp = (char **)esp_;
 
-	//printf ("Check point #1\n");
-	/* Do strlcpy to each parse[] and save address to each argv[]. */
-	for (num = argc-1; num >= 0; num--)
-	{
+  //printf ("Check point #1\n");
+  /* Do strlcpy to each parse[] and save address to each argv[]. */
+  for (num = argc-1; num >= 0; num--)
+  {
     chr_len = strlen (parse[num]);  /* Length of parsed char. */
-		*esp -= chr_len + 1;  /* You must calculate null char (\0). */
-		argv[num] = *esp;     /* Save the current esp address to argv[]. */
-		strlcpy (*esp, parse[num], chr_len + 1);
-		total += chr_len + 1;
-	}
+    *esp -= chr_len + 1;  /* You must calculate null char (\0). */
+    argv[num] = *esp;     /* Save the current esp address to argv[]. */
+    strlcpy (*esp, parse[num], chr_len + 1);
+    total += chr_len + 1;
+  }
 
-	//printf ("Check point #2\n");
-	/* Check the world-align padding in multiple of 4.
-	   PintOS is 32bit operating system, which means PC Register is 32bit long.
-	   32bit is same as 4byte. Typically, PC value is automatically increases 
-		 as length of PC bits (PC = PC + 4byte). And also, Char type is 1byte. 
-	   That's why padding is should be done in multiple of 4.*/
-	for (remainder = total % 4; remainder > 0; remainder = total % 4)
-	{
-		*esp -= 1;
-		**(uint8_t **) esp = 0;
-		total += 1;
-	}
+  //printf ("Check point #2\n");
+  /* Check the world-align padding in multiple of 4.
+     PintOS is 32bit operating system, which means PC Register is 32bit long.
+     32bit is same as 4byte. Typically, PC value is automatically increases 
+     as length of PC bits (PC = PC + 4byte). And also, Char type is 1byte. 
+     That's why padding is should be done in multiple of 4.*/
+  for (remainder = total % 4; remainder > 0; remainder = total % 4)
+  {
+    *esp -= 1;
+    **(uint8_t **) esp = 0;
+    total += 1;
+  }
 
-	//printf ("Check point #3\n");
-	/* Write the address of each argv[]. */
-	*esp -= 4;
-	**(uint32_t **) esp = 0;	   /* Null char padding. */
-	for (num = argc-1; num >= 0; num--)
-	{
-		*esp -= 4;
-		**(uint32_t **) esp = argv[num];
-	}
-	*esp -= 4;
-	**(uint32_t **) esp = *esp + 4;    /* Save address of argv. */
-	*esp -= 4;
-	**(int **) esp = argc;             /* Save value of argc. */
-	*esp -= 4;
-	**(uint32_t **) esp = 0;           /* Save fake return address '0'. */
+  //printf ("Check point #3\n");
+  /* Write the address of each argv[]. */
+  *esp -= 4;
+  **(uint32_t **) esp = 0;     /* Null char padding. */
+  for (num = argc-1; num >= 0; num--)
+  {
+    *esp -= 4;
+    **(uint32_t **) esp = argv[num];
+  }
+  *esp -= 4;
+  **(uint32_t **) esp = *esp + 4;    /* Save address of argv. */
+  *esp -= 4;
+  **(int **) esp = argc;             /* Save value of argc. */
+  *esp -= 4;
+  **(uint32_t **) esp = 0;           /* Save fake return address '0'. */
 }
 
 /* Waits for thread TID to die and returns its exit status.  If
@@ -192,20 +192,19 @@ arg_stack_push (char **parse, int argc, void **esp_)
 int
 process_wait (tid_t child_tid) 
 {
-	int retval;
-	struct thread *child;
-	child = find_child (child_tid);
+  int retval;
+  struct thread *child;
+  child = find_child (child_tid);
 
-	/* If child process isn't exist, then... */ 
-	if (child == NULL)
-		return -1;
+  /* If child process isn't exist, then... */ 
+  if (child == NULL)
+    return -1;
 
-	/* In the case that child process is exist. */
+  /* In the case that child process is exist. */
   sema_down (&child->sema_exit);        /* Wait for exit child process. */
-	retval = child->exit_status;          /* Save its status. */ 
-  list_remove (&child->child_elem);     /* Remove from list. */
-  palloc_free_page (child);             /* Free struct thread *child. */
-	
+  retval = child->exit_status;          /* Save its status. */ 
+  remove_child_process (child);
+  
   return retval;
 }
 
@@ -215,22 +214,24 @@ process_exit (void)
 {
   struct thread *cur = thread_current ();
   uint32_t *pd;
-	int i;          /* Added code. */
-	struct file *file;
-	struct list_elem *e;
+  int i;          /* Added code. */
+  struct file *file;
+  struct list_elem *e;
 
-	if (cur->run_file != NULL)
-	{
-		file_allow_write (cur->run_file);
-		file_close (cur->run_file);
-	}
+  /* Close file before terminate process. */
+  if (cur->run_file != NULL)
+  {
+    file_allow_write (cur->run_file);
+    file_close (cur->run_file);
+  }
+
   /* Added codes for file descriptor. Close every opened files 
-		 and free file_descriptor_table memory. */
-	for (i = cur->next_fd - 1; i > 1; i--)
-	{
-	  process_close_file (i);
-	}
-	palloc_free_page (cur->fdt);
+     and free file_descriptor_table memory. */
+  for (i = cur->next_fd - 1; i > 1; i--)
+  {
+    process_close_file (i);
+  }
+  palloc_free_page (cur->fdt);
 
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
@@ -250,65 +251,74 @@ process_exit (void)
     }
 }
 
+/* Find child process using given tid. 
+   If child process doesn't exist, then return NULL. */
 struct thread *
 find_child (int tid)
 {
-	struct thread *t = thread_current ();
-	struct list_elem *e;
-	for (e = list_begin (&t->child_list); e != list_end (&t->child_list);
-    	 e = list_next (e))
-	{
-		struct thread *child = list_entry (e, struct thread, child_elem);
-		if (tid == child->tid)
-			return child;
-	}
+  struct thread *t = thread_current ();
+  struct list_elem *e;
+  for (e = list_begin (&t->child_list); e != list_end (&t->child_list);
+       e = list_next (e))
+  {
+    struct thread *child = list_entry (e, struct thread, child_elem);
+    if (tid == child->tid)
+      return child;
+  }
 
-	return NULL;
+  return NULL;
 }
 
+/* Remove child process from child list and 
+   deallocate memory. */
 void
 remove_child_process (struct thread *cp)
 {
-	list_remove (&cp->child_elem);
-	palloc_free_page (cp);
+  list_remove (&cp->child_elem);
+  palloc_free_page (cp);
 }
 
+/* Add file to file descriptor in current process. 
+   Return value of file descriptor. */
 int
 process_add_file (struct file *f)
 {
-	int retval;
-	struct thread *t = thread_current ();
+  int retval;
+  struct thread *t = thread_current ();
 
-	if (f == NULL)
-		return -1;
+  if (f == NULL)
+    return -1;
 
-	retval = t->next_fd;
-	t->fdt[t->next_fd] = f;
-	t->next_fd++;
-	return retval;
+  retval = t->next_fd;
+  t->fdt[t->next_fd] = f;
+  t->next_fd++;
+  return retval;
 }
 
+/* Return file pointer using given fd. */
 struct file * 
 process_get_file (int fd)
 {
-	struct thread *t = thread_current ();
-	
-	if (t->next_fd > fd && fd > 1)
-		return t->fdt[fd];
-	else
-		return NULL;
+  struct thread *t = thread_current ();
+  
+  if (t->next_fd > fd && fd > 1)
+    return t->fdt[fd];
+  else
+    return NULL;
 }
 
+/* Find specific file using given fd and close it. 
+   Set file descriptor table to NULL. */
 void
 process_close_file (int fd)
 {
-	struct file *f = process_get_file (fd);
-	
-	if (f != NULL)
-	{
-	  file_close (f);
-	  thread_current ()->fdt[fd] = NULL;
-	}
+  struct file *f = process_get_file (fd);
+  
+  if (f != NULL)
+  {
+    file_close (f);
+    thread_current ()->fdt[fd] = NULL;
+  }
 }
 
 /* Sets up the CPU for running user code in the current
@@ -417,16 +427,16 @@ load (const char *file_name, void (**eip) (void), void **esp)
   process_activate ();
 
   /* Open executable file. */
-	lock_acquire (&filesys_lock);
+  lock_acquire (&filesys_lock);
   file = filesys_open (file_name);
   if (file == NULL) 
     {
-			lock_release (&filesys_lock);
+      lock_release (&filesys_lock);
       printf ("load: %s: open failed\n", file_name);
       goto done; 
     }
 
-	/* Parse the ELF file and get the ELF header */
+  /* Parse the ELF file and get the ELF header */
   /* Read and verify executable header. */
   if (file_read (file, &ehdr, sizeof ehdr) != sizeof ehdr
       || memcmp (ehdr.e_ident, "\177ELF\1\1\1", 7)
@@ -446,7 +456,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
     {
       struct Elf32_Phdr phdr;
 
-			/* load segment information*/
+      /* load segment information*/
       if (file_ofs < 0 || file_ofs > file_length (file))
         goto done;
       file_seek (file, file_ofs);
@@ -491,7 +501,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
                   zero_bytes = ROUND_UP (page_offset + phdr.p_memsz, PGSIZE);
                 }
 
-							/* load the executable file */
+              /* load the executable file */
               if (!load_segment (file, file_page, (void *) mem_page,
                                  read_bytes, zero_bytes, writable))
                 goto done;
@@ -512,9 +522,9 @@ load (const char *file_name, void (**eip) (void), void **esp)
   success = true;
 
   /* Denying to Write file. */
-	file_deny_write (file);
-	t->run_file = file;
-	lock_release (&filesys_lock);
+  file_deny_write (file);
+  t->run_file = file;
+  lock_release (&filesys_lock);
 
  done:
   /* We arrive here whether the load is successful or not. */
