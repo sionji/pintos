@@ -191,7 +191,7 @@ inode_create (block_sector_t sector, off_t length, uint32_t is_dir)
       /* Added codes. */
       if (length > 0)
         inode_update_file_length (disk_inode, 0, length);
-		
+    
       bc_write (sector, disk_inode, 0, BLOCK_SECTOR_SIZE, 0);
       free (disk_inode);
       success = true;
@@ -368,11 +368,11 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
   if (write_end > old_length - 1)
   {
     /* Update length info before call inode_update_file_length (). */
-		inode_disk->length = write_end + 1;
+    inode_disk->length = write_end + 1;
     /* Update on-disk inode. */
-		inode_update_file_length (inode_disk, old_length, write_end);
+    inode_update_file_length (inode_disk, old_length, write_end);
 
-		bc_write (inode->sector, inode_disk, 0, BLOCK_SECTOR_SIZE, 0);
+    bc_write (inode->sector, inode_disk, 0, BLOCK_SECTOR_SIZE, 0);
   }
   lock_release (&inode->extend_lock);
 
@@ -632,12 +632,12 @@ inode_update_file_length (struct inode_disk *inode_disk,
 {
   /* Do something. */
   off_t size = end_pos - start_pos;  /* Size to increase. */
-	off_t offset = start_pos;          /* Offset of whole file length. */
+  off_t offset = start_pos;          /* Offset of whole file length. */
 
   block_sector_t sector_idx;         /* Block sector index. */
   struct sector_location sec_loc;    /* Sector location indicator. */
 
-	/* Set zeroes. */
+  /* Set zeroes. */
   /* We know how much file length to increase, not data info. 
      So we assign zero-initiated block to increased block. */
   char *zeroes = malloc (BLOCK_SECTOR_SIZE);

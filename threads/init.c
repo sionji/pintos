@@ -129,9 +129,9 @@ main (void)
   filesys_init (format_filesys);
 #endif
 
-	/* Added codes for VM. */
-	lru_list_init ();
-	swap_init ();
+  /* Added codes for VM. */
+  lru_list_init ();
+  swap_init ();
 
   printf ("Boot complete.\n");
   
