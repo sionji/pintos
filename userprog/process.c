@@ -32,8 +32,8 @@ void arg_stack_push (char **parse, int argc, void **esp);
 tid_t
 process_execute (const char *file_name) 
 {
-	char file_name_[LOADER_ARGS_LEN / 2 + 1];
-	char *token, *save_ptr;			/* Added code. */
+  char file_name_[LOADER_ARGS_LEN / 2 + 1];
+  char *token, *save_ptr;     /* Added code. */
   char *fn_copy;
   tid_t tid;
 
@@ -44,13 +44,13 @@ process_execute (const char *file_name)
     return TID_ERROR;
   strlcpy (fn_copy, file_name, PGSIZE);
 
-	/* Added codes for argument parsing. */
-	strlcpy (file_name_, file_name, strlen (file_name) + 1);
-	token = strtok_r (file_name_, " ", &save_ptr);
+  /* Added codes for argument parsing. */
+  strlcpy (file_name_, file_name, strlen (file_name) + 1);
+  token = strtok_r (file_name_, " ", &save_ptr);
 
   /* Create a new thread to execute FILE_NAME. */
   /* Old code.
-		 tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy); */
+     tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy); */
   tid = thread_create (token, PRI_DEFAULT, start_process, fn_copy);
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy); 
@@ -67,19 +67,19 @@ start_process (void *file_name_)
   struct intr_frame if_;
   bool success;
   
-	char *token, *save_ptr;			/* Added codes. */
-	char *parse[LOADER_ARGS_LEN / 2 + 1];
-	int argc = 0;
+  char *token, *save_ptr;     /* Added codes. */
+  char *parse[LOADER_ARGS_LEN / 2 + 1];
+  int argc = 0;
 
-	//int i = 0; /* Debugging code */
-	
-	/* Added codes from argument parsing. Parse a name of file. */
-	for (token = strtok_r (file_name, " ", &save_ptr);
-			 token != NULL; token = strtok_r (NULL, " ", &save_ptr))
-	{
-		parse[argc] = token;
-		argc++;
-	}
+  //int i = 0; /* Debugging code */
+  
+  /* Added codes from argument parsing. Parse a name of file. */
+  for (token = strtok_r (file_name, " ", &save_ptr);
+       token != NULL; token = strtok_r (NULL, " ", &save_ptr))
+  {
+    parse[argc] = token;
+    argc++;
+  }
 
   vm_init (&thread_current ()->vm);
 
@@ -89,30 +89,30 @@ start_process (void *file_name_)
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
   /* Old code.
-		 success = load (file_name, &if_.eip, &if_.esp); */
+     success = load (file_name, &if_.eip, &if_.esp); */
   success = load (parse[0], &if_.eip, &if_.esp);
   
   /* Added code for argument stack push and syscall hierarchy. */
-	if (success)
-	{
-		//printf ("load success...\n");
-		thread_current ()->flag_load = 1;
+  if (success)
+  {
+    //printf ("load success...\n");
+    thread_current ()->flag_load = 1;
     sema_up (&thread_current ()->sema_load);
-		/* Stack push must be executed before free its page. */
-		arg_stack_push (&parse, argc, &if_.esp); 
-	}
+    /* Stack push must be executed before free its page. */
+    arg_stack_push (&parse, argc, &if_.esp); 
+  }
 
   /* If load failed, quit. */
   palloc_free_page (file_name);
   if (!success) 
-	{
-		thread_current ()->flag_load = -1;
+  {
+    thread_current ()->flag_load = -1;
     sema_up (&thread_current ()->sema_load);
     syscall_exit (-1);
-	}
+  }
 
-	/* Added code for debugging. */
-	//hex_dump (if_.esp, if_.esp, PHYS_BASE - if_.esp, true);
+  /* Added code for debugging. */
+  //hex_dump (if_.esp, if_.esp, PHYS_BASE - if_.esp, true);
 
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
@@ -128,52 +128,52 @@ start_process (void *file_name_)
 void 
 arg_stack_push (char **parse, int argc, void **esp_)
 {
-	short total = 0;
-	short remainder;
-	int chr_len = 0;
-	int num;
-	char **argv[argc+1];
-	char **esp = (char **)esp_;
+  short total = 0;
+  short remainder;
+  int chr_len = 0;
+  int num;
+  char **argv[argc+1];
+  char **esp = (char **)esp_;
 
-	//printf ("Check point #1\n");
-	/* Do strlcpy to each parse[] and save address to each argv[]. */
-	for (num = argc-1; num >= 0; num--)
-	{
+  //printf ("Check point #1\n");
+  /* Do strlcpy to each parse[] and save address to each argv[]. */
+  for (num = argc-1; num >= 0; num--)
+  {
     chr_len = strlen (parse[num]);  /* Length of parsed char. */
-		*esp -= chr_len + 1;  /* You must calculate null char (\0). */
-		argv[num] = *esp;     /* Save the current esp address to argv[]. */
-		strlcpy (*esp, parse[num], chr_len + 1);
-		total += chr_len + 1;
-	}
+    *esp -= chr_len + 1;  /* You must calculate null char (\0). */
+    argv[num] = *esp;     /* Save the current esp address to argv[]. */
+    strlcpy (*esp, parse[num], chr_len + 1);
+    total += chr_len + 1;
+  }
 
-	//printf ("Check point #2\n");
-	/* Check the world-align padding in multiple of 4.
-	   PintOS is 32bit operating system, which means PC Register is 32bit long.
-	   32bit is same as 4byte. Typically, PC value is automatically increases 
-		 as length of PC bits (PC = PC + 4byte). And also, Char type is 1byte. 
-	   That's why padding is should be done in multiple of 4.*/
-	for (remainder = total % 4; remainder > 0; remainder = total % 4)
-	{
-		*esp -= 1;
-		**(uint8_t **) esp = 0;
-		total += 1;
-	}
+  //printf ("Check point #2\n");
+  /* Check the world-align padding in multiple of 4.
+     PintOS is 32bit operating system, which means PC Register is 32bit long.
+     32bit is same as 4byte. Typically, PC value is automatically increases 
+     as length of PC bits (PC = PC + 4byte). And also, Char type is 1byte. 
+     That's why padding is should be done in multiple of 4.*/
+  for (remainder = total % 4; remainder > 0; remainder = total % 4)
+  {
+    *esp -= 1;
+    **(uint8_t **) esp = 0;
+    total += 1;
+  }
 
-	//printf ("Check point #3\n");
-	/* Write the address of each argv[]. */
-	*esp -= 4;
-	**(uint32_t **) esp = 0;	   /* Null char padding. */
-	for (num = argc-1; num >= 0; num--)
-	{
-		*esp -= 4;
-		**(uint32_t **) esp = argv[num];
-	}
-	*esp -= 4;
-	**(uint32_t **) esp = *esp + 4;    /* Save address of argv. */
-	*esp -= 4;
-	**(int **) esp = argc;             /* Save value of argc. */
-	*esp -= 4;
-	**(uint32_t **) esp = 0;           /* Save fake return address '0'. */
+  //printf ("Check point #3\n");
+  /* Write the address of each argv[]. */
+  *esp -= 4;
+  **(uint32_t **) esp = 0;     /* Null char padding. */
+  for (num = argc-1; num >= 0; num--)
+  {
+    *esp -= 4;
+    **(uint32_t **) esp = argv[num];
+  }
+  *esp -= 4;
+  **(uint32_t **) esp = *esp + 4;    /* Save address of argv. */
+  *esp -= 4;
+  **(int **) esp = argc;             /* Save value of argc. */
+  *esp -= 4;
+  **(uint32_t **) esp = 0;           /* Save fake return address '0'. */
 }
 
 /* Waits for thread TID to die and returns its exit status.  If
@@ -188,19 +188,19 @@ arg_stack_push (char **parse, int argc, void **esp_)
 int
 process_wait (tid_t child_tid) 
 {
-	int retval;
-	struct thread *child;
-	child = find_child (child_tid);
+  int retval;
+  struct thread *child;
+  child = find_child (child_tid);
 
-	/* If child process isn't exist, then... */ 
-	if (child == NULL)
-		return -1;
+  /* If child process isn't exist, then... */ 
+  if (child == NULL)
+    return -1;
 
-	/* In the case that child process is exist. */
+  /* In the case that child process is exist. */
   sema_down (&child->sema_exit);        /* Wait for exit child process. */
-	retval = child->exit_status;          /* Save its status. */ 
-	remove_child_process (child);         /* Remove child process. */
-	
+  retval = child->exit_status;          /* Save its status. */ 
+  remove_child_process (child);         /* Remove child process. */
+  
   return retval;
 }
 
@@ -210,28 +210,28 @@ process_exit (void)
 {
   struct thread *cur = thread_current ();
   uint32_t *pd;
-	int i;          /* Added code. */
-	
-	/* Added codes for Denying write for executable. */ 
-	if (cur->run_file != NULL)
-	{
-		file_allow_write (cur->run_file);
-		file_close (cur->run_file);
-	}
+  int i;          /* Added code. */
+  
+  /* Added codes for Denying write for executable. */ 
+  if (cur->run_file != NULL)
+  {
+    file_allow_write (cur->run_file);
+    file_close (cur->run_file);
+  }
 
   /* Added codes for file descriptor. Close every opened files 
-		 and free file_descriptor_table memory. */
-	for (i = 2; i < 128; i++)
-	{
+     and free file_descriptor_table memory. */
+  for (i = 2; i < 128; i++)
+  {
     if (cur->fdt[i] != NULL)
       process_close_file (i);
-	}
-	//palloc_free_page (cur->fdt);
-	free (cur->fdt);
+  }
+  //palloc_free_page (cur->fdt);
+  free (cur->fdt);
 
-	/* Added codes for VM. */
-	syscall_munmap (CLOSE_ALL);
-	vm_destroy (&cur->vm);
+  /* Added codes for VM. */
+  syscall_munmap (CLOSE_ALL);
+  vm_destroy (&cur->vm);
 
   /* Close current thread working directory. */
   dir_close (cur->cur_dir);
@@ -257,34 +257,34 @@ process_exit (void)
 struct thread *
 find_child (int tid)
 {
-	struct thread *t = thread_current ();
-	struct list_elem *e;
-	for (e = list_begin (&t->child_list); e != list_end (&t->child_list);
-    	 e = list_next (e))
-	{
-		struct thread *child = list_entry (e, struct thread, child_elem);
-		if (tid == child->tid)
-			return child;
-	}
+  struct thread *t = thread_current ();
+  struct list_elem *e;
+  for (e = list_begin (&t->child_list); e != list_end (&t->child_list);
+       e = list_next (e))
+  {
+    struct thread *child = list_entry (e, struct thread, child_elem);
+    if (tid == child->tid)
+      return child;
+  }
 
-	return NULL;
+  return NULL;
 }
 
 void
 remove_child_process (struct thread *cp)
 {
-	list_remove (&cp->child_elem);
-	palloc_free_page (cp);
+  list_remove (&cp->child_elem);
+  palloc_free_page (cp);
 }
 
 int
 process_add_file (struct file *f)
 {
-	int retval;
-	struct thread *t = thread_current ();
+  int retval;
+  struct thread *t = thread_current ();
 
-	if (f == NULL)
-		return -1;
+  if (f == NULL)
+    return -1;
 
   for (retval = 2; retval < 128; retval++)
   {
@@ -299,40 +299,40 @@ process_add_file (struct file *f)
   return -1;
 
   /*
-	retval = t->next_fd;
-	t->fdt[t->next_fd] = f;
-	t->next_fd++;
-	return retval;
+  retval = t->next_fd;
+  t->fdt[t->next_fd] = f;
+  t->next_fd++;
+  return retval;
   */
 }
 
 struct file * 
 process_get_file (int fd)
 {
-	struct thread *t = thread_current ();
-	
+  struct thread *t = thread_current ();
+  
   if (fd > 1)
     return t->fdt[fd];
   else
     return NULL;
   /*
-	if (t->next_fd > fd && fd > 1)
-		return t->fdt[fd];
-	else
-		return NULL;
+  if (t->next_fd > fd && fd > 1)
+    return t->fdt[fd];
+  else
+    return NULL;
     */
 }
 
 void
 process_close_file (int fd)
 {
-	struct file *f = process_get_file (fd);
-	
-	if (f != NULL)
-	{
-	  file_close (f);
-	  thread_current ()->fdt[fd] = NULL;
-	}
+  struct file *f = process_get_file (fd);
+  
+  if (f != NULL)
+  {
+    file_close (f);
+    thread_current ()->fdt[fd] = NULL;
+  }
 }
 
 /* Sets up the CPU for running user code in the current
@@ -441,16 +441,16 @@ load (const char *file_name, void (**eip) (void), void **esp)
   process_activate ();
 
   /* Open executable file. */
-	lock_acquire (&filesys_lock);
+  lock_acquire (&filesys_lock);
   file = filesys_open (file_name);
   if (file == NULL) 
     {
-			lock_release (&filesys_lock);
+      lock_release (&filesys_lock);
       printf ("load: %s: open failed\n", file_name);
       goto done; 
     }
 
-	/* Parse the ELF file and get the ELF header */
+  /* Parse the ELF file and get the ELF header */
   /* Read and verify executable header. */
   if (file_read (file, &ehdr, sizeof ehdr) != sizeof ehdr
       || memcmp (ehdr.e_ident, "\177ELF\1\1\1", 7)
@@ -470,7 +470,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
     {
       struct Elf32_Phdr phdr;
 
-			/* load segment information*/
+      /* load segment information*/
       if (file_ofs < 0 || file_ofs > file_length (file))
         goto done;
       file_seek (file, file_ofs);
@@ -515,7 +515,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
                   zero_bytes = ROUND_UP (page_offset + phdr.p_memsz, PGSIZE);
                 }
 
-							/* load the executable file */
+              /* load the executable file */
               if (!load_segment (file, file_page, (void *) mem_page,
                                  read_bytes, zero_bytes, writable))
                 goto done;
@@ -536,9 +536,9 @@ load (const char *file_name, void (**eip) (void), void **esp)
   success = true;
 
   /* Denying to Write file. */
-	file_deny_write (file);
-	t->run_file = file;
-	lock_release (&filesys_lock);
+  file_deny_write (file);
+  t->run_file = file;
+  lock_release (&filesys_lock);
 
  done:
   /* We arrive here whether the load is successful or not. */
@@ -626,31 +626,31 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       size_t page_read_bytes = read_bytes < PGSIZE ? read_bytes : PGSIZE;
       size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
-			/* Erase physical memory allocation and mapping codes.
-				 Add vm_entry codes. */
-			struct vm_entry *vme = (struct vm_entry *) malloc (sizeof (struct vm_entry));
-			if (vme == NULL)
-				return false;
-			vme->type = VM_BIN;
-			vme->vaddr = upage;
-			vme->writable = writable;
-			vme->is_loaded = false;
-			vme->file = file;
-			vme->offset = ofs;
-			vme->read_bytes = page_read_bytes;
-			vme->zero_bytes = page_zero_bytes;
+      /* Erase physical memory allocation and mapping codes.
+         Add vm_entry codes. */
+      struct vm_entry *vme = (struct vm_entry *) malloc (sizeof (struct vm_entry));
+      if (vme == NULL)
+        return false;
+      vme->type = VM_BIN;
+      vme->vaddr = upage;
+      vme->writable = writable;
+      vme->is_loaded = false;
+      vme->file = file;
+      vme->offset = ofs;
+      vme->read_bytes = page_read_bytes;
+      vme->zero_bytes = page_zero_bytes;
 
-			/* Insert vm_entry to hash table. */
-			if (!insert_vme (&thread_current ()->vm, vme))
-				return false;
+      /* Insert vm_entry to hash table. */
+      if (!insert_vme (&thread_current ()->vm, vme))
+        return false;
 
       /* Advance. */
       read_bytes -= page_read_bytes;
       zero_bytes -= page_zero_bytes;
       upage += PGSIZE;
 
-			/* Added code*/
-			ofs += page_read_bytes;
+      /* Added code*/
+      ofs += page_read_bytes;
     }
   return true;
 }
@@ -663,37 +663,37 @@ setup_stack (void **esp)
   uint8_t *kpage;
   bool success = false;
 
-	struct page *page = alloc_page (PAL_USER | PAL_ZERO);
-	kpage = page->kaddr;
+  struct page *page = alloc_page (PAL_USER | PAL_ZERO);
+  kpage = page->kaddr;
   if (kpage != NULL) 
     {
       success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
       if (success)
-			{
+      {
         *esp = PHYS_BASE;
 
-				/* Create and initialize vm_entry. */
+        /* Create and initialize vm_entry. */
         struct vm_entry *vme = (struct vm_entry *) malloc (sizeof (struct vm_entry));
-				if (vme == NULL)
-				{
-					//palloc_free_page (kpage);
-					free_page (page->kaddr);
-					return false;
-				}
+        if (vme == NULL)
+        {
+          //palloc_free_page (kpage);
+          free_page (page->kaddr);
+          return false;
+        }
         vme->type = VM_BIN;
-	      vme->vaddr = ((uint8_t *) PHYS_BASE) - PGSIZE;
-	      vme->writable = true;
-	      vme->is_loaded = true;
+        vme->vaddr = ((uint8_t *) PHYS_BASE) - PGSIZE;
+        vme->writable = true;
+        vme->is_loaded = true;
 
-	      /* Insert vm_entry to hash table. */
-	      insert_vme (&thread_current ()->vm, vme);
-				page->vme = vme;
-			}
+        /* Insert vm_entry to hash table. */
+        insert_vme (&thread_current ()->vm, vme);
+        page->vme = vme;
+      }
       else
         //palloc_free_page (kpage);
-				free_page (page->kaddr);
+        free_page (page->kaddr);
     }
-	
+  
   return success;
 }
 
@@ -720,54 +720,54 @@ install_page (void *upage, void *kpage, bool writable)
 bool
 handle_mm_fault (struct vm_entry *vme)
 {
-	bool success = false;
+  bool success = false;
 
-	if (vme->is_loaded)
-		return false;
+  if (vme->is_loaded)
+    return false;
 
-	//char *kpage = palloc_get_page (PAL_USER);
-	struct page *page = alloc_page (PAL_USER);
-	char *kaddr = page->kaddr;
-	page->vme = vme;
-	switch (vme->type)
-	{
-		case VM_BIN :
-			{
-				//printf ("CASE VM_BIN\n");
-				if (load_file (kaddr, vme))
-					success = install_page (vme->vaddr, kaddr, vme->writable);
-				break;
-			}
+  //char *kpage = palloc_get_page (PAL_USER);
+  struct page *page = alloc_page (PAL_USER);
+  char *kaddr = page->kaddr;
+  page->vme = vme;
+  switch (vme->type)
+  {
+    case VM_BIN :
+      {
+        //printf ("CASE VM_BIN\n");
+        if (load_file (kaddr, vme))
+          success = install_page (vme->vaddr, kaddr, vme->writable);
+        break;
+      }
 
-		case VM_FILE :
-			{
-				//printf ("CASE VM_FILE\n");
-				if (load_file (kaddr, vme))
-					success = install_page (vme->vaddr, kaddr, vme->writable);
-				break;
-			}
+    case VM_FILE :
+      {
+        //printf ("CASE VM_FILE\n");
+        if (load_file (kaddr, vme))
+          success = install_page (vme->vaddr, kaddr, vme->writable);
+        break;
+      }
 
-		case VM_ANON :
-			{
-				//printf ("CASE VM_ANON\n");
-				swap_in (vme->swap_slot, kaddr);
-				success = install_page (vme->vaddr, kaddr, vme->writable);
-				break;
-			}
-		default :
-			{
-				//printf ("CASE DEFAULT\n");
-				break;
-			}
-	}
+    case VM_ANON :
+      {
+        //printf ("CASE VM_ANON\n");
+        swap_in (vme->swap_slot, kaddr);
+        success = install_page (vme->vaddr, kaddr, vme->writable);
+        break;
+      }
+    default :
+      {
+        //printf ("CASE DEFAULT\n");
+        break;
+      }
+  }
 
-	//printf ("handle-mm-fault Result : %s\n", success ? "true" : "false");
-	if (!success)
-		//palloc_free_page (kaddr);
-		free_page (kaddr);
+  //printf ("handle-mm-fault Result : %s\n", success ? "true" : "false");
+  if (!success)
+    //palloc_free_page (kaddr);
+    free_page (kaddr);
 
-	vme->is_loaded = true;
-	return success;
+  vme->is_loaded = true;
+  return success;
 }
 
 bool
@@ -776,29 +776,29 @@ expand_stack (void *addr, void *esp)
   void *uaddr = pg_round_down (addr);
   while (!find_vme (uaddr))
   {
-	/* Allocate page. */
-	struct page *page = alloc_page (PAL_USER);
-	/* Demand paging. */
-	struct vm_entry *vme = (struct vm_entry *) malloc (sizeof (struct vm_entry));
-	if (vme == NULL)
-		return false;
-	/* Initialize. */
-	page->vme = vme;
-	vme->type = VM_ANON;
-	vme->vaddr = uaddr;
-	vme->writable = true;
-	vme->is_loaded = true;
-	/* Insert vm_entry to hash table. */
-	insert_vme (&thread_current ()->vm, vme);
-	/* Install page. */
-	bool success = install_page (vme->vaddr, page->kaddr, true);
-	if (!success)
-	{
-		delete_vme (&thread_current ()->vm, vme);
-		free_page (page);
-		free (vme);
-		return false;
-	}
+  /* Allocate page. */
+  struct page *page = alloc_page (PAL_USER);
+  /* Demand paging. */
+  struct vm_entry *vme = (struct vm_entry *) malloc (sizeof (struct vm_entry));
+  if (vme == NULL)
+    return false;
+  /* Initialize. */
+  page->vme = vme;
+  vme->type = VM_ANON;
+  vme->vaddr = uaddr;
+  vme->writable = true;
+  vme->is_loaded = true;
+  /* Insert vm_entry to hash table. */
+  insert_vme (&thread_current ()->vm, vme);
+  /* Install page. */
+  bool success = install_page (vme->vaddr, page->kaddr, true);
+  if (!success)
+  {
+    delete_vme (&thread_current ()->vm, vme);
+    free_page (page);
+    free (vme);
+    return false;
+  }
   uaddr += PGSIZE;
   }
   return true;

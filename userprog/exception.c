@@ -151,42 +151,42 @@ page_fault (struct intr_frame *f)
   write = (f->error_code & PF_W) != 0;
   user = (f->error_code & PF_U) != 0;
 
-	/* Check address is valid. */
-	check_address (fault_addr, f->esp);
+  /* Check address is valid. */
+  check_address (fault_addr, f->esp);
 
-	/* Added codes for Demand paging. */
-	/* Use syscall_exit when if page fault is happened by kernel or 
-	   its address indicates kernel address. */
-	if (not_present)
-	{
-		struct vm_entry *vme = find_vme (fault_addr);
-		/* handle_mm_fault. */
-		if (vme)
-		{
-			if (!handle_mm_fault (vme))
-			{
-				syscall_exit (-1);
-				kill (f);
-			}
-		}
+  /* Added codes for Demand paging. */
+  /* Use syscall_exit when if page fault is happened by kernel or 
+     its address indicates kernel address. */
+  if (not_present)
+  {
+    struct vm_entry *vme = find_vme (fault_addr);
+    /* handle_mm_fault. */
+    if (vme)
+    {
+      if (!handle_mm_fault (vme))
+      {
+        syscall_exit (-1);
+        kill (f);
+      }
+    }
 
-		/* Extensible stack. */
-		else 
-		{
-  		if (verify_stack (fault_addr, f->esp))
-	  		expand_stack (fault_addr, f->esp);
-  		else
-	  	{
-		  	syscall_exit (-1);
-				kill (f);
-		  }
-		}
-	}
-	else if (!user || !not_present)
-	{
-		syscall_exit (-1);
-		kill (f);
-	}
+    /* Extensible stack. */
+    else 
+    {
+      if (verify_stack (fault_addr, f->esp))
+        expand_stack (fault_addr, f->esp);
+      else
+      {
+        syscall_exit (-1);
+        kill (f);
+      }
+    }
+  }
+  else if (!user || !not_present)
+  {
+    syscall_exit (-1);
+    kill (f);
+  }
 
   /* To implement virtual memory, delete the rest of the function
      body, and replace it with code that brings in the page to
@@ -197,18 +197,18 @@ page_fault (struct intr_frame *f)
           write ? "writing" : "reading",
           user ? "user" : "kernel");
   kill (f);
-	*/
+  */
 }
 
 bool
 verify_stack (void *addr, void *esp)
 {
-	bool check_1 = ((uint32_t) addr >= 0xC0000000 - MAX_HEURISTIC)? true: false;
+  bool check_1 = ((uint32_t) addr >= 0xC0000000 - MAX_HEURISTIC)? true: false;
   bool check_2 = (esp - STACK_HEURISTIC <= addr)? true: false;
-	/* Move esp. 
-	if (valid)
-		f->esp = sp;
-		
+  /* Move esp. 
+  if (valid)
+    f->esp = sp;
+    
   if (!check_1)
     printf ("Check_1 false! \n");
   if (!check_2)
@@ -221,5 +221,5 @@ verify_stack (void *addr, void *esp)
   }
   */
     
-	return (check_1 && check_2);
+  return (check_1 && check_2);
 }
