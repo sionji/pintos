@@ -80,22 +80,22 @@ try_to_free_pages (enum palloc_flags flags)
   void *kaddr = NULL;
   struct page *page;
   struct vm_entry *vme;
-  if (lru_clock == NULL)
-    lru_clock = list_begin (&lru_list);
 
-  do 
+  while (kaddr == NULL)
   {
+    /* If lru_clock indicates NULL, then change it to begin of lru_list. */
+    if (lru_clock == NULL)
+      lru_clock = list_begin (&lru_list);
+
+    /* Get page and vm_entry. */
     page = list_entry (lru_clock, struct page, lru);
     vme = page->vme;
 
     /* You must move lru_clock becasue selected page may be free. */
     lru_clock = get_next_lru_clock ();
-    if (lru_clock == NULL)
-      return NULL;
 
-  } while (vme->type == VM_FILE);
+    lock_acquire (&lru_list_lock);
 
-  lock_acquire (&lru_list_lock);
     /* Check pagedir_is_accessed. */
     if (pagedir_is_accessed (page->thread->pagedir, page->vme->vaddr))
       pagedir_set_accessed (page->thread->pagedir, page->vme->vaddr, false);
@@ -122,11 +122,12 @@ try_to_free_pages (enum palloc_flags flags)
                (lock_held_by_current_thread () script error will cause.)  */
             lock_acquire (&filesys_lock);
             file_write_at (vme->file, vme->vaddr, vme->read_bytes, vme->offset);
-            //pagedir_set_dirty (page->thread->pagedir, vme->vaddr, false);
+            pagedir_set_dirty (page->thread->pagedir, vme->vaddr, false);
             lock_release (&filesys_lock);
           } 
-          page->vme->type = VM_ANON;
-          page->vme->swap_slot = swap_out (page->kaddr);
+          /* Do not swap it out. Just write it and free. */
+          //page->vme->type = VM_ANON;
+          //page->vme->swap_slot = swap_out (page->kaddr);
           break;
         }
   
@@ -137,6 +138,7 @@ try_to_free_pages (enum palloc_flags flags)
           break;
         }
     }
+
     /* Free page. */
     page->vme->is_loaded = false;
     __free_page (page);
@@ -144,7 +146,9 @@ try_to_free_pages (enum palloc_flags flags)
     /* Memory allocation and return it's pointer.*/
     kaddr = palloc_get_page (flags);
 
-  lock_release (&lru_list_lock);
+    lock_release (&lru_list_lock);
+  }
+
   return kaddr;
 }
 
