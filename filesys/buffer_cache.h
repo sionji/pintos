@@ -13,7 +13,8 @@ struct buffer_head
   struct inode *inode;      /* inode pointer. */
   bool dirty;               /* Flag shows dirty. */
   bool clock_bit;           /* True : accessed recently. False : not. */
-  bool valid;               /* True : valid entry. False : not.*/
+  bool valid;               /* True : valid entry. False : not. */
+  bool victim;              /* True : selected as victim, False: not. */
   block_sector_t sector;    /* Address of disk sector of it's entry. */
   struct lock head_lock;    /* Lock. */
   void *data;               /* Buffer cache entry data pointer. */
