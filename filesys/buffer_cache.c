@@ -12,7 +12,7 @@ struct buffer_head buffer_head [BUFFER_CACHE_ENTRY_NB];
 /* Victim entry chooser at clock algorithm. */
 unsigned int clock_hand;
 
-struct lock general;
+struct lock buffercache;
 
 void
 bc_init (void)
@@ -34,7 +34,7 @@ bc_init (void)
   }
   clock_hand = 0;
 
-  lock_init (&general);
+  lock_init (&buffercache);
 }
 
 /* Flush cached data to Disk block. */
@@ -55,7 +55,7 @@ bool
 bc_read (block_sector_t sector_idx, void *buffer,
          off_t bytes_read, int chunk_size, int sector_ofs)
 {
-  lock_acquire (&general);
+  lock_acquire (&buffercache);
   /* Search sector_idx in buffer_head. */
   struct buffer_head *head_ptr = bc_lookup (sector_idx);
   /* If it isn't exist, find victim. */
@@ -69,7 +69,7 @@ bc_read (block_sector_t sector_idx, void *buffer,
   }
   else
     lock_acquire (&head_ptr->head_lock);
-  lock_release (&general);
+  lock_release (&buffercache);
 
   /* Using memcpy to copy disk block data to buffer. */
   memcpy (buffer + bytes_read, head_ptr->data + sector_ofs, chunk_size);
@@ -86,7 +86,7 @@ bool
 bc_write (block_sector_t sector_idx, void *buffer,
           off_t bytes_written, int chunk_size, int sector_ofs)
 {
-  lock_acquire (&general);
+  lock_acquire (&buffercache);
   /* Search sector_ids in buffer_head and copy to buffer cache. */
   struct buffer_head *head_ptr = bc_lookup (sector_idx);
   if (head_ptr == NULL)
@@ -99,7 +99,7 @@ bc_write (block_sector_t sector_idx, void *buffer,
   }
   else
     lock_acquire (&head_ptr->head_lock);
-  lock_release (&general);
+  lock_release (&buffercache);
 
   memcpy (head_ptr->data + sector_ofs, buffer + bytes_written, chunk_size);
 
