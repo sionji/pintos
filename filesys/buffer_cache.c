@@ -58,11 +58,14 @@ bc_read (block_sector_t sector_idx, void *buffer,
   if (head_ptr == NULL)
   {
     head_ptr = bc_select_victim ();
+    lock_acquire (&head_ptr->head_lock);
     head_ptr->sector = sector_idx;
     head_ptr->valid = true;
     head_ptr->victim = false;
     block_read (fs_device, sector_idx, head_ptr->data);
   }
+  else
+    lock_acquire (&head_ptr->head_lock);
 
   /* Using memcpy to copy disk block data to buffer. */
   memcpy (buffer + bytes_read, head_ptr->data + sector_ofs, chunk_size);
@@ -84,11 +87,14 @@ bc_write (block_sector_t sector_idx, void *buffer,
   if (head_ptr == NULL)
   {
     head_ptr = bc_select_victim ();
+    lock_acquire (&head_ptr->head_lock);
     head_ptr->valid = true;
     head_ptr->victim = false;
     head_ptr->sector = sector_idx;
     block_read (fs_device, sector_idx, head_ptr->data);
   }
+  else
+    lock_acquire (&head_ptr->head_lock);
 
   memcpy (head_ptr->data + sector_ofs, buffer + bytes_written, chunk_size);
 
@@ -113,10 +119,7 @@ bc_select_victim (void)
   for (i = 0; i < BUFFER_CACHE_ENTRY_NB; i++)
   {
     if (buffer_head [i].valid == false && buffer_head [i].victim == false)
-    {
-      lock_acquire (&buffer_head [i].head_lock);
       return &buffer_head [i];
-    }
   }
 
   /* If buffer cache is full, find victim. */
@@ -142,6 +145,7 @@ bc_select_victim (void)
   buffer_head [clock_hand].sector = 0;
   buffer_head [clock_hand].valid = false;
   buffer_head [clock_hand].victim = false;
+  lock_release (&buffer_head [clock_hand].head_lock);
 
   /* Return victim entry. */
   return &buffer_head [clock_hand];
@@ -168,10 +172,7 @@ bc_lookup (block_sector_t sector)
     }
   }
   if (success)
-  {
-    lock_acquire (&buffer_head [i].head_lock);
     return &buffer_head [i];
-  }
   else
     return NULL;
 }
@@ -197,8 +198,6 @@ bc_flush_all_entries (void)
   {
     if (buffer_head [i].valid == true &&
         buffer_head [i].dirty == true)
-    {
       bc_flush_entry (&buffer_head [i]);      /* Flush. */
-    }
   }
 }
