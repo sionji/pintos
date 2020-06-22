@@ -103,7 +103,7 @@ start_process (void *file_name_)
   }
 
   /* If load failed, quit. */
-  palloc_free_page (file_name);
+  palloc_free_page (file_name_);
   if (!success) 
   {
     thread_current ()->flag_load = -1;
@@ -445,7 +445,6 @@ load (const char *file_name, void (**eip) (void), void **esp)
   file = filesys_open (file_name);
   if (file == NULL) 
     {
-      lock_release (&filesys_lock);
       printf ("load: %s: open failed\n", file_name);
       goto done; 
     }
@@ -538,11 +537,12 @@ load (const char *file_name, void (**eip) (void), void **esp)
   /* Denying to Write file. */
   file_deny_write (file);
   t->run_file = file;
-  lock_release (&filesys_lock);
 
  done:
   /* We arrive here whether the load is successful or not. */
   //file_close (file);
+
+  lock_release (&filesys_lock);
   return success;
 }
 
