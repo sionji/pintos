@@ -86,10 +86,7 @@ syscall_handler (struct intr_frame *f)
         if (t_child->flag_load == 1)
           f->eax = retval;
         else
-        {
-          process_wait (tid);
           f->eax = -1;
-        }
 
         break;
       }
