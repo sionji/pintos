@@ -140,6 +140,7 @@ filesys_remove (const char *name)
     /* In case of directory. */
     struct dir *target_dir = dir_open (inode);
 
+    /* If there is no file in target_dir, returned value is false. Then remove. */
     if (file_name != NULL && !dir_readdir (target_dir, file_name))
       success = dir_remove (dir, file_name);
   }
@@ -241,15 +242,18 @@ parse_path (char *path_name, char *file_name)
   return dir;
 }
 
+/* Create directory on path. */
 bool 
 filesys_create_dir (const char *name)
 {
+  /* Parse path. */
   int PATH_LENGTH = strlen (name) + 1;
   char path_name [512];
   strlcpy (path_name, name, PATH_LENGTH);
   char file_name [NAME_MAX + 1];
   struct dir *dir = parse_path (path_name, file_name);
 
+  /* Do free_map_allocate(). */
   block_sector_t inode_sector = 0;
   bool success = (dir != NULL
                   && free_map_allocate (1, &inode_sector)
@@ -258,13 +262,14 @@ filesys_create_dir (const char *name)
   if (!success && inode_sector != 0) 
     free_map_release (inode_sector, 1);
 
-  struct inode *inode;
-  if (success && dir_lookup (dir, file_name, &inode))
+  /* Make default directory. */
+  if (success)
   {
-    struct dir *dir_ = dir_open (inode);
-    dir_add (dir_, ".", inode_sector);
-    dir_add (dir_, "..", inode_get_inumber (dir_get_inode (dir)));
-    dir_close (dir_);
+    struct inode *inode = inode_open (inode_sector);
+    struct dir *target_dir = dir_open (inode);
+    dir_add (target_dir, ".", inode_sector);
+    dir_add (target_dir, "..", inode_get_inumber (dir_get_inode (dir)));
+    dir_close (target_dir);
   }
 
   dir_close (dir);
